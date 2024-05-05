@@ -140,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--mini_batch_size", type=int, default=16, help="Minibatch size")
-    parser.add_argument("--hidden_width", type=int, default=256, help="The number of neurons in hidden layers of the neural network")
+    parser.add_argument("--hidden_width", type=int, default=512, help="The number of neurons in hidden layers of the neural network")
     parser.add_argument("--lr_a", type=float, default=3e-4, help="Learning rate of actor")
     parser.add_argument("--lr_c", type=float, default=3e-4, help="Learning rate of critic")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
