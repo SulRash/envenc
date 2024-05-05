@@ -1,3 +1,4 @@
+import gym.spaces
 import torch
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
@@ -7,6 +8,18 @@ from normalization import Normalization, RewardScaling
 from replaybuffer import ReplayBuffer
 from ppo_discrete import PPO_discrete
 
+from serve import infer_no_lm
+
+from tinyllava.model.builder import load_pretrained_model
+from tinyllava.mm_utils import get_model_name_from_path
+
+model_path = "bczhou/TinyLLaVA-2.0B"
+
+tokenizer, model, image_processor, context_len = load_pretrained_model(
+    model_path=model_path,
+    model_base=None,
+    model_name=get_model_name_from_path(model_path)
+)
 
 def evaluate_policy(args, env, agent, state_norm):
     times = 3
@@ -39,6 +52,8 @@ def main(args, env_name, number, seed):
     env_evaluate.action_space.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    
+    env.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2048,))
 
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.n
@@ -66,7 +81,7 @@ def main(args, env_name, number, seed):
 
     while total_steps < args.max_train_steps:
         s = env.reset()
-        s 
+        s = infer_no_lm(tokenizer, model, image_processor, s)
         if args.use_state_norm:
             s = state_norm(s)
         if args.use_reward_scaling:
@@ -77,6 +92,7 @@ def main(args, env_name, number, seed):
             episode_steps += 1
             a, a_logprob = agent.choose_action(s)  # Action and the corresponding log probability
             s_, r, done, _ = env.step(a)
+            s_ = infer_no_lm(tokenizer, model, image_processor, s_)
 
             if args.use_state_norm:
                 s_ = state_norm(s_)
@@ -119,9 +135,9 @@ if __name__ == '__main__':
     parser.add_argument("--max_train_steps", type=int, default=int(2e5), help=" Maximum number of training steps")
     parser.add_argument("--evaluate_freq", type=float, default=5e3, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
-    parser.add_argument("--batch_size", type=int, default=2048, help="Batch size")
-    parser.add_argument("--mini_batch_size", type=int, default=64, help="Minibatch size")
-    parser.add_argument("--hidden_width", type=int, default=64, help="The number of neurons in hidden layers of the neural network")
+    parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
+    parser.add_argument("--mini_batch_size", type=int, default=16, help="Minibatch size")
+    parser.add_argument("--hidden_width", type=int, default=256, help="The number of neurons in hidden layers of the neural network")
     parser.add_argument("--lr_a", type=float, default=3e-4, help="Learning rate of actor")
     parser.add_argument("--lr_c", type=float, default=3e-4, help="Learning rate of critic")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
@@ -129,7 +145,7 @@ if __name__ == '__main__':
     parser.add_argument("--epsilon", type=float, default=0.2, help="PPO clip parameter")
     parser.add_argument("--K_epochs", type=int, default=10, help="PPO parameter")
     parser.add_argument("--use_adv_norm", type=bool, default=True, help="Trick 1:advantage normalization")
-    parser.add_argument("--use_state_norm", type=bool, default=True, help="Trick 2:state normalization")
+    parser.add_argument("--use_state_norm", type=bool, default=False, help="Trick 2:state normalization")
     parser.add_argument("--use_reward_norm", type=bool, default=False, help="Trick 3:reward normalization")
     parser.add_argument("--use_reward_scaling", type=bool, default=True, help="Trick 4:reward scaling")
     parser.add_argument("--entropy_coef", type=float, default=0.01, help="Trick 5: policy entropy")
@@ -141,6 +157,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    env_name = ['CartPole-v1', 'LunarLander-v2']
-    env_index = 1
+    env_name = ['CartPole-v1', 'LunarLander-v2', "Atlantis-v4"]
+    env_index = 2
     main(args, env_name=env_name[env_index], number=1, seed=0)

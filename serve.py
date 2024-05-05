@@ -80,7 +80,7 @@ def infer(tokenizer, model, image_processor, inp, image_file):
     
     return outputs, output_ids
 
-def infer_no_lm(tokenizer, model, image_processor, image_file):
+def infer_no_lm(tokenizer, model, image_processor, image_array):
     disable_torch_init()
     
     inp = "What is the best move for the player?"
@@ -89,15 +89,15 @@ def infer_no_lm(tokenizer, model, image_processor, image_file):
         system="What is the meaning of this:",
         roles=("USER", "ASSISTANT"),
         version="phi",
-        messages=(),
+        messages=[],
         offset=0,
         sep_style=SeparatorStyle.TWO,
         sep=" ",
         sep2="<|endoftext|>",
     )
 
-    if image_file is not None:
-        image = load_image(image_file)
+    if image_array is not None:
+        image = Image.fromarray(image_array, 'RGB')
         image_tensor = process_images([image], image_processor, model.config)
         if type(image_tensor) is list:
             image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
@@ -125,10 +125,10 @@ def infer_no_lm(tokenizer, model, image_processor, image_file):
     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
     with torch.inference_mode():
-        output_ids = model(
+        out = model(
             input_ids,
             images=image_tensor,
             output_hidden_states=True
         )    
     
-    return output_ids
+    return out.hidden_states[0][0].mean(dim=0).detach().cpu().numpy()
