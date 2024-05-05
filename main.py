@@ -22,7 +22,7 @@ tokenizer, model, image_processor, context_len = load_pretrained_model(
 )
 
 def evaluate_policy(args, env, agent, state_norm):
-    times = 3
+    times = 1
     evaluate_reward = 0
     for _ in range(times):
         s = env.reset()
@@ -136,7 +136,7 @@ def main(args, env_name, number, seed):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameter Setting for PPO-discrete")
     parser.add_argument("--max_train_steps", type=int, default=int(2e5), help=" Maximum number of training steps")
-    parser.add_argument("--evaluate_freq", type=float, default=10, help="Evaluate the policy every 'evaluate_freq' steps")
+    parser.add_argument("--evaluate_freq", type=float, default=20, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--mini_batch_size", type=int, default=16, help="Minibatch size")

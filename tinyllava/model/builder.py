@@ -58,7 +58,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
                                                             config=lora_cfg_pretrained, **kwargs)
         elif 'stablelm' in model_name.lower() or '2b' in model_name.lower():
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False, padding_side="right")
-            model = TinyLlavaStablelmForCausalLM.from_pretrained(model_base, low_cpu_mem_usage=True,
+            model = TinyLlavaStablelmForCausalLM.from_pretrained(model_base, attn_implementation="flash_attention_2",
                                                                  config=lora_cfg_pretrained, **kwargs)
         elif 'qwen' in model_name.lower():
             tokenizer = AutoTokenizer.from_pretrained(model_base, use_fast=False, padding_side="right")
