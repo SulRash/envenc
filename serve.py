@@ -124,11 +124,11 @@ def infer_no_lm(tokenizer, model, image_processor, image_array):
     keywords = [stop_str]
     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
-    with torch.inference_mode():
+    with torch.no_grad():
         out = model(
             input_ids,
             images=image_tensor,
             output_hidden_states=True
         )    
-    
-    return out.hidden_states[0][0].mean(dim=0)
+        merged_out = out.hidden_states[0][0].mean(dim=0)
+    return merged_out

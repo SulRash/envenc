@@ -71,8 +71,8 @@ class PPO_discrete:
         self.use_lr_decay = args.use_lr_decay
         self.use_adv_norm = args.use_adv_norm
 
-        self.actor = Actor(args).to('cuda')
-        self.critic = Critic(args).to('cuda')
+        self.actor = Actor(args).half().to('cuda')
+        self.critic = Critic(args).half().to('cuda')
 
 
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
@@ -83,13 +83,13 @@ class PPO_discrete:
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c)
 
     def evaluate(self, s):  # When evaluating the policy, we select the action with the highest probability
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.unsqueeze(s, 0)
         a_prob = self.actor(s).flatten()
         a = torch.argmax(a_prob)
         return a
 
     def choose_action(self, s):
-        s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
+        s = torch.unsqueeze(s, 0)
         with torch.no_grad():
             dist = Categorical(probs=self.actor(s))
             a = dist.sample()
