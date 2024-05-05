@@ -26,6 +26,7 @@ def evaluate_policy(args, env, agent, state_norm):
     evaluate_reward = 0
     for _ in range(times):
         s = env.reset()
+        s = infer_no_lm(tokenizer, model, image_processor, s)
         if args.use_state_norm:  # During the evaluating,update=False
             s = state_norm(s, update=False)
         done = False
@@ -33,6 +34,7 @@ def evaluate_policy(args, env, agent, state_norm):
         while not done:
             a = agent.evaluate(s)  # We use the deterministic policy during the evaluating
             s_, r, done, _ = env.step(a)
+            s_ = infer_no_lm(tokenizer, model, image_processor, s_)
             if args.use_state_norm:
                 s_ = state_norm(s_, update=False)
             episode_reward += r
@@ -45,6 +47,9 @@ def evaluate_policy(args, env, agent, state_norm):
 def main(args, env_name, number, seed):
     env = gym.make(env_name)
     env_evaluate = gym.make(env_name)  # When evaluating the policy, we need to rebuild an environment
+    env_evaluate.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2048,))
+    env.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2048,))
+
     # Set random seed
     env.seed(seed)
     env.action_space.seed(seed)
@@ -53,8 +58,6 @@ def main(args, env_name, number, seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
     
-    env.observation_space = gym.spaces.Box(-np.inf, np.inf, shape=(2048,))
-
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.n
     args.max_episode_steps = env._max_episode_steps  # Maximum number of steps per episode
@@ -133,7 +136,7 @@ def main(args, env_name, number, seed):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Hyperparameter Setting for PPO-discrete")
     parser.add_argument("--max_train_steps", type=int, default=int(2e5), help=" Maximum number of training steps")
-    parser.add_argument("--evaluate_freq", type=float, default=5e3, help="Evaluate the policy every 'evaluate_freq' steps")
+    parser.add_argument("--evaluate_freq", type=float, default=10, help="Evaluate the policy every 'evaluate_freq' steps")
     parser.add_argument("--save_freq", type=int, default=20, help="Save frequency")
     parser.add_argument("--batch_size", type=int, default=256, help="Batch size")
     parser.add_argument("--mini_batch_size", type=int, default=16, help="Minibatch size")
