@@ -33,14 +33,15 @@ def infer(tokenizer, model, image_processor, inp, image_file):
     conv_mode = 'phi'
     conv = conv_templates[conv_mode].copy()
 
-    image = load_image(image_file)
-    image_tensor = process_images([image], image_processor, model.config)
-    if type(image_tensor) is list:
-        image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+    if image_file is not None:
+        image = load_image(image_file)
+        image_tensor = process_images([image], image_processor, model.config)
+        if type(image_tensor) is list:
+            image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+        else:
+            image_tensor = image_tensor.to(model.device, dtype=torch.float16)
     else:
-        image_tensor = image_tensor.to(model.device, dtype=torch.float16)
-
-
+        image = None
     if image is not None:
         if model.config.mm_use_im_start_end:
             inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
@@ -51,6 +52,7 @@ def infer(tokenizer, model, image_processor, inp, image_file):
     else:
         # later messages
         conv.append_message(conv.roles[0], inp)
+        image_tensor = None
     conv.append_message(conv.roles[1], None)
     prompt = conv.get_prompt()
 
@@ -78,7 +80,7 @@ def infer(tokenizer, model, image_processor, inp, image_file):
     if debug:
         print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
     
-    return outputs
+    return outputs, output_ids
 
 def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
     # Model
@@ -91,14 +93,15 @@ def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
     conv_mode = 'phi'
     conv = conv_templates[conv_mode].copy()
 
-    image = load_image(image_file)
-    image_tensor = process_images([image], image_processor, model.config)
-    if type(image_tensor) is list:
-        image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+    if image_file is not None:
+        image = load_image(image_file)
+        image_tensor = process_images([image], image_processor, model.config)
+        if type(image_tensor) is list:
+            image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+        else:
+            image_tensor = image_tensor.to(model.device, dtype=torch.float16)
     else:
-        image_tensor = image_tensor.to(model.device, dtype=torch.float16)
-
-
+        image = None
     if image is not None:
         if model.config.mm_use_im_start_end:
             inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
@@ -109,6 +112,7 @@ def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
     else:
         # later messages
         conv.append_message(conv.roles[0], inp)
+        image_tensor = None
     conv.append_message(conv.roles[1], None)
     prompt = conv.get_prompt()
 
@@ -118,14 +122,23 @@ def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
     with torch.inference_mode():
-        output_ids = model.generate(
+        # output_ids = model.generate(
+        #     input_ids,
+        #     images=image_tensor,
+        #     do_sample=True if temperature > 0 else False,
+        #     temperature=temperature,
+        #     max_new_tokens=max_new_tokens,
+        #     use_cache=True,
+        #     stopping_criteria=[stopping_criteria]
+        # )
+
+        output_ids = model(
             input_ids,
             images=image_tensor,
-            do_sample=True if temperature > 0 else False,
-            temperature=temperature,
-            max_new_tokens=max_new_tokens,
-            use_cache=True,
-            stopping_criteria=[stopping_criteria]
+            output_hidden_states=True
         )
+       #outputs = tokenizer.decode(output_ids.logits[0, input_ids.shape[1]:]).strip()
+    
+    #print(outputs)
     
     return output_ids
