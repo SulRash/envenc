@@ -71,8 +71,10 @@ class PPO_discrete:
         self.use_lr_decay = args.use_lr_decay
         self.use_adv_norm = args.use_adv_norm
 
-        self.actor = Actor(args)
-        self.critic = Critic(args)
+        self.actor = Actor(args).to('cuda')
+        self.critic = Critic(args).to('cuda')
+
+
         if self.set_adam_eps:  # Trick 9: set Adam epsilon=1e-5
             self.optimizer_actor = torch.optim.Adam(self.actor.parameters(), lr=self.lr_a, eps=1e-5)
             self.optimizer_critic = torch.optim.Adam(self.critic.parameters(), lr=self.lr_c, eps=1e-5)
@@ -82,8 +84,8 @@ class PPO_discrete:
 
     def evaluate(self, s):  # When evaluating the policy, we select the action with the highest probability
         s = torch.unsqueeze(torch.tensor(s, dtype=torch.float), 0)
-        a_prob = self.actor(s).detach().numpy().flatten()
-        a = np.argmax(a_prob)
+        a_prob = self.actor(s).flatten()
+        a = torch.argmax(a_prob)
         return a
 
     def choose_action(self, s):
@@ -92,7 +94,7 @@ class PPO_discrete:
             dist = Categorical(probs=self.actor(s))
             a = dist.sample()
             a_logprob = dist.log_prob(a)
-        return a.numpy()[0], a_logprob.numpy()[0]
+        return a[0], a_logprob[0]
 
     def update(self, replay_buffer, total_steps):
         s, a, a_logprob, r, s_, dw, done = replay_buffer.numpy_to_tensor()  # Get training data

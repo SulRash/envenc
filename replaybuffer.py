@@ -4,13 +4,13 @@ import numpy as np
 
 class ReplayBuffer:
     def __init__(self, args):
-        self.s = np.zeros((args.batch_size, args.state_dim))
-        self.a = np.zeros((args.batch_size, 1))
-        self.a_logprob = np.zeros((args.batch_size, 1))
+        self.s = torch.zeros((args.batch_size, args.state_dim))
+        self.a = torch.zeros((args.batch_size, 1))
+        self.a_logprob = torch.zeros((args.batch_size, 1))
         self.r = np.zeros((args.batch_size, 1))
-        self.s_ = np.zeros((args.batch_size, args.state_dim))
-        self.dw = np.zeros((args.batch_size, 1))
-        self.done = np.zeros((args.batch_size, 1))
+        self.s_ = torch.zeros((args.batch_size, args.state_dim))
+        self.dw = torch.zeros((args.batch_size, 1))
+        self.done = torch.zeros((args.batch_size, 1))
         self.count = 0
 
     def store(self, s, a, a_logprob, r, s_, dw, done):

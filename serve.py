@@ -131,4 +131,4 @@ def infer_no_lm(tokenizer, model, image_processor, image_array):
             output_hidden_states=True
         )    
     
-    return out.hidden_states[0][0].mean(dim=0).detach().cpu().numpy()
+    return out.hidden_states[0][0].mean(dim=0)
