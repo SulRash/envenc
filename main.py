@@ -60,7 +60,7 @@ def main(args, env_name, number, seed):
     
     args.state_dim = env.observation_space.shape[0]
     args.action_dim = env.action_space.n
-    args.max_episode_steps = env._max_episode_steps  # Maximum number of steps per episode
+    args.max_episode_steps = env._max_episode_steps   # Maximum number of steps per episode
     print("env={}".format(env_name))
     print("state_dim={}".format(args.state_dim))
     print("action_dim={}".format(args.action_dim))
@@ -160,6 +160,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    env_name = ['CartPole-v1', 'LunarLander-v2', "Atlantis-v4"]
-    env_index = 2
+    env_name = ['CartPole-v1', 'LunarLander-v2', "Atlantis-v4", "MsPacman-v4", "CarRacing-v0"]
+    env_index = 3
     main(args, env_name=env_name[env_index], number=1, seed=0)
