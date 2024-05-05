@@ -1,7 +1,7 @@
 import torch
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
-from tinyllava.conversation import conv_templates, SeparatorStyle
+from tinyllava.conversation import Conversation, SeparatorStyle
 from tinyllava.utils import disable_torch_init
 from tinyllava.mm_utils import process_images, tokenizer_image_token, KeywordsStoppingCriteria
 
@@ -21,9 +21,7 @@ def load_image(image_file):
         image = Image.open(image_file).convert('RGB')
     return image
 
-
 def infer(tokenizer, model, image_processor, inp, image_file):
-    # Model
     disable_torch_init()
 
     max_new_tokens = 256
@@ -82,16 +80,21 @@ def infer(tokenizer, model, image_processor, inp, image_file):
     
     return outputs, output_ids
 
-def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
-    # Model
+def infer_no_lm(tokenizer, model, image_processor, image_file):
     disable_torch_init()
-
-    max_new_tokens = 256
     
-    debug = False
-    temperature = 0
-    conv_mode = 'phi'
-    conv = conv_templates[conv_mode].copy()
+    inp = "What is the best move for the player?"
+
+    conv = Conversation(
+        system="What is the meaning of this:",
+        roles=("USER", "ASSISTANT"),
+        version="phi",
+        messages=(),
+        offset=0,
+        sep_style=SeparatorStyle.TWO,
+        sep=" ",
+        sep2="<|endoftext|>",
+    )
 
     if image_file is not None:
         image = load_image(image_file)
@@ -122,23 +125,10 @@ def infer_no_lm(tokenizer, model, image_processor, inp, image_file):
     stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
     with torch.inference_mode():
-        # output_ids = model.generate(
-        #     input_ids,
-        #     images=image_tensor,
-        #     do_sample=True if temperature > 0 else False,
-        #     temperature=temperature,
-        #     max_new_tokens=max_new_tokens,
-        #     use_cache=True,
-        #     stopping_criteria=[stopping_criteria]
-        # )
-
         output_ids = model(
             input_ids,
             images=image_tensor,
             output_hidden_states=True
-        )
-       #outputs = tokenizer.decode(output_ids.logits[0, input_ids.shape[1]:]).strip()
-    
-    #print(outputs)
+        )    
     
     return output_ids
