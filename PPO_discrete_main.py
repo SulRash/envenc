@@ -66,6 +66,7 @@ def main(args, env_name, number, seed):
 
     while total_steps < args.max_train_steps:
         s = env.reset()
+        s 
         if args.use_state_norm:
             s = state_norm(s)
         if args.use_reward_scaling:
