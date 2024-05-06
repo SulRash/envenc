@@ -117,9 +117,9 @@ def main(args, env_name, number, seed):
             total_steps += 1
 
             # When the number of transitions in buffer reaches batch_size,then update
-            # if replay_buffer.count == args.batch_size:
-            agent.update(replay_buffer, total_steps)
-            replay_buffer.count = 0
+            if replay_buffer.count == args.batch_size:
+                agent.update(replay_buffer, total_steps)
+                replay_buffer.count = 0
 
             # Evaluate the policy every 'evaluate_freq' steps
             if total_steps % args.evaluate_freq == 0:
