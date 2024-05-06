@@ -112,7 +112,7 @@ class PPO_discrete:
             for delta, d in zip(reversed(deltas.flatten().numpy()), reversed(done.flatten().numpy())):
                 gae = delta + self.gamma * self.lamda * gae * (1.0 - d)
                 adv.insert(0, gae)
-            adv = torch.tensor(adv, dtype=torch.float).view(-1, 1)
+            adv = torch.tensor(adv, dtype=torch.half ).view(-1, 1)
             v_target = adv + vs
             if self.use_adv_norm:  # Trick 1:advantage normalization
                 adv = ((adv - adv.mean()) / (adv.std() + 1e-5))

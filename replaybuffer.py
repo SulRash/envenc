@@ -4,13 +4,13 @@ import numpy as np
 
 class ReplayBuffer:
     def __init__(self, args):
-        self.s = torch.zeros((args.batch_size, args.state_dim)).to('cuda')
+        self.s = torch.zeros((args.batch_size, args.state_dim), dtype=torch.half).to('cuda')
         self.a = torch.zeros((args.batch_size, 1), dtype=torch.long).to('cuda')
-        self.a_logprob = torch.zeros((args.batch_size, 1)).to('cuda')
+        self.a_logprob = torch.zeros((args.batch_size, 1), dtype=torch.half).to('cuda')
         self.r = np.zeros((args.batch_size, 1))
-        self.s_ = torch.zeros((args.batch_size, args.state_dim)).to('cuda')
-        self.dw = torch.zeros((args.batch_size, 1)).to('cuda')
-        self.done = torch.zeros((args.batch_size, 1)).to('cuda')
+        self.s_ = torch.zeros((args.batch_size, args.state_dim), dtype=torch.half).to('cuda')
+        self.dw = torch.zeros((args.batch_size, 1), dtype=torch.half).to('cuda')
+        self.done = torch.zeros((args.batch_size, 1), dtype=torch.half).to('cuda')
         self.count = 0
 
     def store(self, s, a, a_logprob, r, s_, dw, done):
@@ -26,7 +26,7 @@ class ReplayBuffer:
     def numpy_to_tensor(self):
         # s = torch.tensor(self.s, dtype=torch.float)
         # a = torch.tensor(self.a, dtype=torch.long)  # In discrete action space, 'a' needs to be torch.long
-        a_logprob = torch.tensor(self.a_logprob, dtype=torch.float)
+        a_logprob = torch.tensor(self.a_logprob, dtype=torch.half)
         # r = torch.tensor(self.r, dtype=torch.float)
         # s_ = torch.tensor(self.s_, dtype=torch.float)
         # dw = torch.tensor(self.dw, dtype=torch.float)
