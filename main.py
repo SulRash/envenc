@@ -33,7 +33,8 @@ model_path = "bczhou/TinyLLaVA-2.0B"
 tokenizer, model, image_processor, context_len = load_pretrained_model(
     model_path=model_path,
     model_base=None,
-    model_name=get_model_name_from_path(model_path)
+    model_name=get_model_name_from_path(model_path),
+    load_4bit=True
 )
 
 model = torch.compile(model)
