@@ -97,7 +97,9 @@ def infer_no_lm(tokenizer, model, image_processor, image_array):
     )
 
     if image_array is not None:
-        image = Image.fromarray(image_array, 'RGB')
+        #image = Image.fromarray(image_array)
+        import torchvision
+        image = torchvision.transforms.ToPILImage()(image_array)
         image_tensor = process_images([image], image_processor, model.config)
         if type(image_tensor) is list:
             image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
