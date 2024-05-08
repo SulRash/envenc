@@ -126,26 +126,34 @@ class AgentEmb(nn.Module):
     def __init__(self, envs):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 8192)),
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
             nn.Tanh(),
-            layer_init(nn.Linear(8192, 4096)),
+            layer_init(nn.Linear(4096, 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(4096, 2048)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(2048, 1024)),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(1024, 1), std=1.0),
+            layer_init(nn.Linear(256, 128)),
+            nn.Tanh(),
+            layer_init(nn.Linear(128, 32)),
+            nn.Tanh(),
+            layer_init(nn.Linear(32, 1), std=1.0),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 8192)),
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
             nn.Tanh(),
-            layer_init(nn.Linear(8192, 4096)),
+            layer_init(nn.Linear(4096, 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(4096, 2048)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(2048, 1024)),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(1024, envs.single_action_space.n), std=0.01),
+            layer_init(nn.Linear(256, 128)),
+            nn.Tanh(),
+            layer_init(nn.Linear(128, 32)),
+            nn.Tanh(),
+            layer_init(nn.Linear(32, envs.single_action_space.n), std=0.01),
         )
 
     def get_value(self, x):
