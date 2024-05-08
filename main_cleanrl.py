@@ -21,8 +21,12 @@ from stable_baselines3.common.atari_wrappers import (  # isort:skip
     NoopResetEnv,
 )
 
+from gymnasium.spaces.box import Box
+
 from tinyllava.model.builder import load_pretrained_model
 from tinyllava.mm_utils import get_model_name_from_path
+
+from serve import infer_no_lm
 
 model_path = "bczhou/TinyLLaVA-2.0B"
 
@@ -58,7 +62,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 1
+    num_envs: int = 2
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -124,15 +128,15 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-class Agent(nn.Module):
+class AgentEmb(nn.Module):
     def __init__(self, envs):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 128)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(128, 256)),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
             layer_init(nn.Linear(256, 128)),
             nn.Tanh(),
@@ -141,11 +145,11 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64, 1), std=1.0),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod()*8, 64)),
+            layer_init(nn.Linear(2048, 1024)),
             nn.Tanh(),
-            layer_init(nn.Linear(64, 128)),
+            layer_init(nn.Linear(1024, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(128, 256)),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
             layer_init(nn.Linear(256, 128)),
             nn.Tanh(),
@@ -204,23 +208,29 @@ if __name__ == "__main__":
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    agent = Agent(envs).to(device)
+    envs.single_observation_space = Box(low=-10000, high=10000, shape=(2048,))
+    envs.observation_space = Box(low=-10000, high=10000, shape=(2048,))
+
+    agent = AgentEmb(envs).to(device).half()
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
-    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
-    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
-    dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
-    values = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device).half()
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device).half()
+    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
+    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
+    dones = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
+    values = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
+    next_done = torch.zeros(args.num_envs).to(device).half()
+    next_all_obs = torch.zeros((args.num_envs,) + envs.single_observation_space.shape).to(device).half()
+
     next_obs, _ = envs.reset(seed=args.seed)
-    next_obs = torch.Tensor(next_obs).to(device)
-    next_done = torch.zeros(args.num_envs).to(device)
+    for i in range(args.num_envs):
+        next_all_obs[i] = infer_no_lm(tokenizer, model, image_processor, next_obs[i])
 
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -231,12 +241,12 @@ if __name__ == "__main__":
 
         for step in range(0, args.num_steps):
             global_step += args.num_envs
-            obs[step] = next_obs
+            obs[step] = next_all_obs
             dones[step] = next_done
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(next_obs)
+                action, logprob, _, value = agent.get_action_and_value(next_all_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -244,8 +254,11 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
-            rewards[step] = torch.tensor(reward).to(device).view(-1)
-            next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
+            rewards[step] = torch.tensor(reward).to(device).half().view(-1)
+            next_done = torch.Tensor(next_done).to(device).half()
+            
+            for i in range(args.num_envs):
+                next_all_obs[i] = infer_no_lm(tokenizer, model, image_processor, next_obs[i])
 
             if "final_info" in infos:
                 for info in infos["final_info"]:
@@ -256,8 +269,8 @@ if __name__ == "__main__":
 
         # bootstrap value if not done
         with torch.no_grad():
-            next_value = agent.get_value(next_obs).reshape(1, -1)
-            advantages = torch.zeros_like(rewards).to(device)
+            next_value = agent.get_value(next_all_obs).reshape(1, -1)
+            advantages = torch.zeros_like(rewards).to(device).half()
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
                 if t == args.num_steps - 1:
