@@ -4,7 +4,7 @@ import requests
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from tinyllava.conversation import Conversation, SeparatorStyle
 from tinyllava.utils import disable_torch_init
-from tinyllava.mm_utils import process_images, tokenizer_image_token, KeywordsStoppingCriteria
+from tinyllava.mm_utils import process_images, tokenizer_image_token
 
 from PIL import Image
 from io import BytesIO
@@ -65,7 +65,6 @@ def infer_no_lm(tokenizer, model, image_processor, image_array):
     input_ids = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt').unsqueeze(0).to(model.device)
     stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
     keywords = [stop_str]
-    stopping_criteria = KeywordsStoppingCriteria(keywords, tokenizer, input_ids)
 
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
         out = model(
