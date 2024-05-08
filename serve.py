@@ -1,4 +1,5 @@
 import torch
+import requests
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from tinyllava.conversation import Conversation, SeparatorStyle
@@ -6,11 +7,7 @@ from tinyllava.utils import disable_torch_init
 from tinyllava.mm_utils import process_images, tokenizer_image_token, KeywordsStoppingCriteria
 
 from PIL import Image
-
-import requests
-from PIL import Image
 from io import BytesIO
-from transformers import TextStreamer
 
 
 def load_image(image_file):
