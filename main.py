@@ -1,5 +1,4 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppo_ataripy
-import os
 import random
 import time
 from dataclasses import dataclass
@@ -30,7 +29,7 @@ from serve import infer_no_lm
 
 @dataclass
 class Args:
-    exp_name: str = os.path.basename(__file__)[: -len(".py")]
+    exp_name: str = "ppo_atari"
     """the name of this experiment"""
     seed: int = 1
     """seed of the experiment"""
@@ -127,13 +126,13 @@ class AgentEmb(nn.Module):
     def __init__(self, envs):
         super().__init__()
         self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
-            nn.Tanh(),
-            layer_init(nn.Linear(4096, 8192)),
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 8192)),
             nn.Tanh(),
             layer_init(nn.Linear(8192, 8192)),
             nn.Tanh(),
-            layer_init(nn.Linear(8192, 2048)),
+            layer_init(nn.Linear(8192, 4096)),
+            nn.Tanh(),
+            layer_init(nn.Linear(4096, 2048)),
             nn.Tanh(),
             layer_init(nn.Linear(2048, 1024)),
             nn.Tanh(),
@@ -142,13 +141,13 @@ class AgentEmb(nn.Module):
             layer_init(nn.Linear(512, 1), std=1.0),
         )
         self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
-            nn.Tanh(),
-            layer_init(nn.Linear(4096, 8192)),
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 8192)),
             nn.Tanh(),
             layer_init(nn.Linear(8192, 8192)),
             nn.Tanh(),
-            layer_init(nn.Linear(8192, 2048)),
+            layer_init(nn.Linear(8192, 4096)),
+            nn.Tanh(),
+            layer_init(nn.Linear(4096, 2048)),
             nn.Tanh(),
             layer_init(nn.Linear(2048, 1024)),
             nn.Tanh(),
@@ -174,7 +173,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__vlm-{args.use_vlm}__{int(time.time())}"
 
     if args.use_vlm:
         model_path = "bczhou/TinyLLaVA-2.0B"
