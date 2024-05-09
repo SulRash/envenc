@@ -171,5 +171,5 @@ if __name__ == "__main__":
     )
     tuner.tune(
         num_trials=100,
-        num_seeds=3,
+        num_seeds=2,
     )
