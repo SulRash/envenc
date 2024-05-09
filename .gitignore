@@ -162,3 +162,5 @@ cython_debug/
 data_train/
 runs/
 wandb/
+
+cleanrl_hpopt.db
