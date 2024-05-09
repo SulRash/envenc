@@ -146,8 +146,6 @@ class Tuner:
         return study.best_trial
 
 if __name__ == "__main__":
-    import optuna
-
     tuner = Tuner(
         script="main.py",
         metric="charts/episodic_return",
@@ -155,8 +153,8 @@ if __name__ == "__main__":
         direction="maximize",
         aggregation_type="average",
         target_scores={
-            "BreakoutNoFrameskip-v4": [0, 100],
-            "PongNoFrameskip-v4": [0, 10],
+            "BreakoutNoFrameskip-v4": [0, 400],
+            "PongNoFrameskip-v4": [-20, 20],
         },
         params_fn=lambda trial: {
             "learning-rate": trial.suggest_float("learning-rate", 0.0003, 0.003, log=True),
@@ -165,7 +163,7 @@ if __name__ == "__main__":
             "num-steps": trial.suggest_categorical("num-steps", [5, 16, 32, 64, 128]),
             "vf-coef": trial.suggest_float("vf-coef", 0, 5),
             "max-grad-norm": trial.suggest_float("max-grad-norm", 0, 5),
-            "total-timesteps": 1000000,
+            "total-timesteps": 250000,
             "num-envs": 16,
         },
         pruner=optuna.pruners.MedianPruner(n_startup_trials=5),
