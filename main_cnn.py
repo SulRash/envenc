@@ -186,8 +186,8 @@ class Agent(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1.0)
 
-        self.actor = layer_init(nn.Linear(128, envs.single_action_space.n), std=0.01)
-        self.critic = layer_init(nn.Linear(128, 1), std=1)
+        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(512, 1), std=1)
 
     def get_states(self, x, lstm_state, done):
         hidden = self.network(x)
