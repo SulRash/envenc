@@ -202,13 +202,13 @@ if __name__ == "__main__":
     if args.use_vlm:
         model_path = "bczhou/TinyLLaVA-2.0B"
 
-        tokenizer, model, image_processor, context_len = load_pretrained_model(
+        tokenizer, model, vision_tower, context_len = load_pretrained_model(
             model_path=model_path,
             model_base=None,
             model_name=get_model_name_from_path(model_path)
         )
 
-        image_processor = torch.compile(image_processor)
+        image_processor = torch.compile(vision_tower).image_processor
         model = torch.compile(model)
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
