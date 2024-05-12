@@ -165,7 +165,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs, args):
+    def __init__(self, envs):
         super().__init__()
         self.network = nn.Sequential(
             layer_init(nn.Conv2d(1, 32, 8, stride=4)),
@@ -178,16 +178,14 @@ class Agent(nn.Module):
             layer_init(nn.Linear(64 * 7 * 7, 512)),
             nn.ReLU(),
         )
-
         self.lstm = nn.LSTM(512, 128)
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 0)
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1.0)
-
-        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
+        self.actor = layer_init(nn.Linear(128, envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def get_states(self, x, lstm_state, done):
         hidden = self.network(x)
@@ -212,7 +210,7 @@ class Agent(nn.Module):
     def get_value(self, x, lstm_state, done):
         hidden, _ = self.get_states(x, lstm_state, done)
         return self.critic(hidden)
-    
+
     def get_action_and_value(self, x, lstm_state, done, action=None):
         hidden, lstm_state = self.get_states(x, lstm_state, done)
         logits = self.actor(hidden)
@@ -307,34 +305,34 @@ if __name__ == "__main__":
         envs.single_observation_space = Box(low=-100, high=100, shape=(49, 2048))
         envs.observation_space = Box(low=-100, high=100, shape=(args.num_envs, 49, 2048))
 
-    agent = Agent(envs, args).to(device).half()
+    agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device).half()
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device).half()
-    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    dones = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    values = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
+    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
+    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_done = torch.zeros(args.num_envs).to(device).half()
+    next_done = torch.zeros(args.num_envs).to(device)
     if args.use_envpool:
         next_obs = np.squeeze(envs.reset())
     else:
         next_obs, _ = envs.reset(seed=args.seed)
     next_lstm_state = (
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
+        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
+        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
     )
 
     if args.use_vlm:
         next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
     else:
-        next_obs = torch.Tensor(next_obs).to(device).half()
+        next_obs = torch.Tensor(next_obs).to(device)
 
     for iteration in range(1, args.num_iterations + 1):
         initial_lstm_state = (next_lstm_state[0].clone(), next_lstm_state[1].clone())
@@ -359,13 +357,13 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
-            rewards[step] = torch.tensor(reward).to(device).half().view(-1)
-            next_done = torch.Tensor(next_done).to(device).half()
+            rewards[step] = torch.tensor(reward).to(device).view(-1)
+            next_done = torch.Tensor(next_done).to(device)
 
             if args.use_vlm:
                 next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
             else:
-                next_obs = torch.Tensor(next_obs).to(device).half()
+                next_obs = torch.Tensor(next_obs).to(device)
 
             if "final_info" in infos:
                 for info in infos["final_info"]:
@@ -381,7 +379,7 @@ if __name__ == "__main__":
                 next_lstm_state,
                 next_done,
             ).reshape(1, -1)
-            advantages = torch.zeros_like(rewards).to(device).half()
+            advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
                 if t == args.num_steps - 1:

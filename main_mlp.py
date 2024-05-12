@@ -165,7 +165,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class Agent(nn.Module):
-    def __init__(self, envs, args):
+    def __init__(self, envs):
         super().__init__()
         self.network = nn.Sequential(
             layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
@@ -189,8 +189,8 @@ class Agent(nn.Module):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1.0)
 
-        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
+        self.actor = layer_init(nn.Linear(128, envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(128, 1), std=1)
 
     def get_states(self, x, lstm_state, done):
         hidden = self.network(x)
@@ -313,7 +313,7 @@ if __name__ == "__main__":
         envs.single_observation_space = Box(low=0, high=255, shape=(7056,))
         envs.observation_space = Box(low=-0, high=255, shape=(args.num_envs, 7056))
 
-    agent = Agent(envs, args).to(device).half()
+    agent = Agent(envs).to(device).half()
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
