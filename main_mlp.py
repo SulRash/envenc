@@ -313,34 +313,34 @@ if __name__ == "__main__":
         envs.single_observation_space = Box(low=0, high=255, shape=(7056,))
         envs.observation_space = Box(low=-0, high=255, shape=(args.num_envs, 7056))
 
-    agent = Agent(envs).to(device).half()
+    agent = Agent(envs).to(device)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
-    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device).half()
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device).half()
-    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    dones = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
-    values = torch.zeros((args.num_steps, args.num_envs)).to(device).half()
+    obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
+    logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    values = torch.zeros((args.num_steps, args.num_envs)).to(device)
 
     # TRY NOT TO MODIFY: start the game
     global_step = 0
     start_time = time.time()
-    next_done = torch.zeros(args.num_envs).to(device).half()
+    next_done = torch.zeros(args.num_envs).to(device)
     if args.use_envpool:
         next_obs = np.squeeze(envs.reset())
     else:
         next_obs, _ = envs.reset(seed=args.seed)
     next_lstm_state = (
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
-        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
+        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
+        torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device),
     )
 
     if args.use_vlm:
         next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
     else:
-        next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
+        next_obs = torch.Tensor(next_obs).to(device).reshape(args.num_envs, -1)
 
     for iteration in range(1, args.num_iterations + 1):
         initial_lstm_state = (next_lstm_state[0].clone(), next_lstm_state[1].clone())
@@ -365,13 +365,13 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
-            rewards[step] = torch.tensor(reward).to(device).half().view(-1)
-            next_done = torch.Tensor(next_done).to(device).half()
+            rewards[step] = torch.tensor(reward).to(device).view(-1)
+            next_done = torch.Tensor(next_done).to(device)
 
             if args.use_vlm:
                 next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
             else:
-                next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
+                next_obs = torch.Tensor(next_obs).to(device).reshape(args.num_envs, -1)
 
             if "final_info" in infos:
                 for info in infos["final_info"]:
@@ -387,7 +387,7 @@ if __name__ == "__main__":
                 next_lstm_state,
                 next_done,
             ).reshape(1, -1)
-            advantages = torch.zeros_like(rewards).to(device).half()
+            advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
                 if t == args.num_steps - 1:
