@@ -244,8 +244,6 @@ if __name__ == "__main__":
 
     if args.use_vlm:
         next_all_obs = torch.zeros((args.num_envs,) + envs.single_observation_space.shape).to(device).half()
-        # for i in range(args.num_envs):
-        #     next_all_obs[i] = infer_no_lm(tokenizer, model, image_processor, next_obs[i])
         next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
     else:
         next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
