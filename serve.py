@@ -40,30 +40,24 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
             sep2="<|endoftext|>",
         )
 
-        if image_array is not None:
 
-            import torchvision
-            image = torchvision.transforms.ToPILImage()(image_array)
-            image_tensor = process_images([image], image_processor, model.config)
+        import torchvision
+        image = torchvision.transforms.ToPILImage()(image_array)
+        image_tensors = process_images([image], image_processor, model.config)
 
-            if type(image_tensor) is list:
-                image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
-            else:
-                image_tensor = image_tensor.to(model.device, dtype=torch.float16)
-            image_tensors[i] = image_tensor[0]
+        if type(image_tensor) is list:
+            image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
         else:
-            image = None
-        if image is not None:
-            if model.config.mm_use_im_start_end:
-                inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
-            else:
-                inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
-            conv.append_message(conv.roles[0], inp)
-            image = None
+            image_tensor = image_tensor.to(model.device, dtype=torch.float16)
+        image_tensors[i] = image_tensor[0]
+
+        if model.config.mm_use_im_start_end:
+            inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
         else:
-            # later messages
-            conv.append_message(conv.roles[0], inp)
-            image_tensor = None
+            inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
+        conv.append_message(conv.roles[0], inp)
+        image = None
+
         conv.append_message(conv.roles[1], None)
         prompt = conv.get_prompt()
 
