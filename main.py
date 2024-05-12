@@ -102,6 +102,8 @@ class Args:
     """Uses LSTM network"""
     use_envpool: bool = False
     """Uses envpool instead of regular gym envs"""
+    nn_arch: str = "cnn"
+    """Neural network architecture to use for rl agent"""
 
 class RecordEpisodeStatistics(gym.Wrapper):
     def __init__(self, env, deque_size=100):
@@ -164,25 +166,38 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-class AgentEmb(nn.Module):
-    def __init__(self, envs):
+class Agent(nn.Module):
+    def __init__(self, envs, args):
         super().__init__()
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
-            nn.Tanh(),
-            layer_init(nn.Linear(4096, 1024)),
-            nn.Tanh(),
-            layer_init(nn.Linear(1024, 1024)),
-            nn.Tanh(),
-            layer_init(nn.Linear(1024, 512)),
-            nn.Tanh(),
-            layer_init(nn.Linear(512, 512)),
-            nn.Tanh(),
-            layer_init(nn.Linear(512, 256)),
-            nn.Tanh(),
-        )
+        if args.nn_arch == "mlp":
+            self.network = nn.Sequential(
+                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
+                nn.Tanh(),
+                layer_init(nn.Linear(4096, 1024)),
+                nn.Tanh(),
+                layer_init(nn.Linear(1024, 1024)),
+                nn.Tanh(),
+                layer_init(nn.Linear(1024, 512)),
+                nn.Tanh(),
+                layer_init(nn.Linear(512, 512)),
+                nn.Tanh(),
+                layer_init(nn.Linear(512, 512)),
+                nn.Tanh(),
+            )
+        elif args.nn_arch == "cnn":
+            self.network = nn.Sequential(
+                layer_init(nn.Conv2d(1, 32, 8, stride=4)),
+                nn.ReLU(),
+                layer_init(nn.Conv2d(32, 64, 4, stride=2)),
+                nn.ReLU(),
+                layer_init(nn.Conv2d(64, 64, 3, stride=1)),
+                nn.ReLU(),
+                nn.Flatten(),
+                layer_init(nn.Linear(64 * 7 * 7, 512)),
+                nn.ReLU(),
+            )
 
-        self.lstm = nn.LSTM(256, 128)
+        self.lstm = nn.LSTM(512, 128)
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 0)
@@ -308,11 +323,11 @@ if __name__ == "__main__":
     if args.use_vlm:
         envs.single_observation_space = Box(low=-100, high=100, shape=(2048,))
         envs.observation_space = Box(low=-100, high=100, shape=(args.num_envs, 2048))
-    else:
+    elif args.nn_arch == "mlp":
         envs.single_observation_space = Box(low=0, high=255, shape=(7056,))
         envs.observation_space = Box(low=-0, high=255, shape=(args.num_envs, 7056))
 
-    agent = AgentEmb(envs).to(device).half()
+    agent = Agent(envs, args).to(device).half()
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -339,7 +354,10 @@ if __name__ == "__main__":
     if args.use_vlm:
         next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
     else:
-        next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
+        if args.nn_arch == "cnn":
+            next_obs = torch.Tensor(next_obs).to(device).half()
+        elif args.nn_arch == "mlp":
+            next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
 
     for iteration in range(1, args.num_iterations + 1):
         initial_lstm_state = (next_lstm_state[0].clone(), next_lstm_state[1].clone())
@@ -370,7 +388,10 @@ if __name__ == "__main__":
             if args.use_vlm:
                 next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
             else:
-                next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
+                if args.nn_arch == "cnn":
+                    next_obs = torch.Tensor(next_obs).to(device).half()
+                elif args.nn_arch == "mlp":
+                    next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
 
             if "final_info" in infos:
                 for info in infos["final_info"]:
