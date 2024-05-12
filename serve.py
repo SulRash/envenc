@@ -85,8 +85,8 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
 
         # Accesses first generated token's last layer's hidden state
         hidden_states = output_ids.hidden_states[0][-1]
-        merged_out = torch.zeros((len(hidden_states), 2048))
+        merged_out = torch.zeros((len(hidden_states), 2048)).to(model.device)
         for i in range(len(hidden_states)):
             merged_out[i] = hidden_states[i].mean(dim=0)
-            
+
     return merged_out
