@@ -22,28 +22,42 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
     disable_torch_init()
     
     input_ids = torch.zeros((image_arrays.shape[0], 49), dtype=torch.long).to(model.device)
-    image_tensors = torch.zeros((image_arrays.shape[0], 3, 384, 384), dtype=torch.float16).to(model.device)
     i = 0
+
+    inp = "What is the best move for the player in this image?"
+
+    conv = Conversation(
+        system="You are a helpful game guide, you will be given a frame of a video game and you should predict the best move for the player.",
+        roles=("USER", "ASSISTANT"),
+        version="phi",
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.TWO,
+        sep=" ",
+        sep2="<|endoftext|>",
+    )
+
+    if model.config.mm_use_im_start_end:
+        inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
+    else:
+        inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
+    conv.append_message(conv.roles[0], inp)
+    image = None
+
+    conv.append_message(conv.roles[1], None)
+    prompt = conv.get_prompt()
+
+    for i in range(len(input_ids)):
+        input_ids[i] = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')[0].unsqueeze(0).to(model.device)
 
     for image_array in image_arrays:
 
-        inp = "What is the best move for the player in this image?"
-
-        conv = Conversation(
-            system="You are a helpful game guide, you will be given a frame of a video game and you should predict the best move for the player.",
-            roles=("USER", "ASSISTANT"),
-            version="phi",
-            messages=[],
-            offset=0,
-            sep_style=SeparatorStyle.TWO,
-            sep=" ",
-            sep2="<|endoftext|>",
-        )
+        
 
 
         import torchvision
         image = torchvision.transforms.ToPILImage()(image_array)
-        image_tensors = process_images([image], image_processor, model.config)
+        image_tensor = process_images([image], image_processor, model.config)
 
         if type(image_tensor) is list:
             image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
@@ -51,18 +65,7 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
             image_tensor = image_tensor.to(model.device, dtype=torch.float16)
         image_tensors[i] = image_tensor[0]
 
-        if model.config.mm_use_im_start_end:
-            inp = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + '\n' + inp
-        else:
-            inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
-        conv.append_message(conv.roles[0], inp)
-        image = None
 
-        conv.append_message(conv.roles[1], None)
-        prompt = conv.get_prompt()
-
-        input_ids[i] = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')[0].unsqueeze(0).to(model.device)
-        i += 1
 
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
         output_ids = model.generate(
