@@ -88,6 +88,5 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
         merged_out = torch.zeros((len(hidden_states), 2048))
         for i in range(len(hidden_states)):
             merged_out[i] = hidden_states[i].mean(dim=0)
-        merged_out = hidden_states[0][0].mean(dim=0)
-    
+            
     return merged_out
