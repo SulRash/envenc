@@ -78,6 +78,7 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
             images=image_tensors,
             do_sample=False,
             max_new_tokens=1,
+            pad_token_id=tokenizer.eos_token_id,
             return_dict_in_generate=True,
             output_hidden_states=True,
             use_cache=True
