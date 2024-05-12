@@ -42,7 +42,6 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
     else:
         inp = DEFAULT_IMAGE_TOKEN + '\n' + inp
     conv.append_message(conv.roles[0], inp)
-    image = None
 
     conv.append_message(conv.roles[1], None)
     prompt = conv.get_prompt()
