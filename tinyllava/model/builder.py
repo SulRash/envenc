@@ -156,12 +156,11 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
     if device != "auto":
         vision_tower.to(device=device, dtype=torch.float16)
-
-    image_processor = vision_tower.image_processor
+        vision_tower = torch.compile(vision_tower)
 
     if hasattr(model.config, "max_sequence_length"):
         context_len = model.config.max_sequence_length
     else:
         context_len = 2048
 
-    return tokenizer, model, image_processor, context_len
+    return tokenizer, model, vision_tower, context_len
