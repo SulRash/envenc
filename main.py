@@ -3,7 +3,7 @@ import random
 import time
 from dataclasses import dataclass
 
-import gymnasium as gym
+import gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,6 +20,7 @@ from stable_baselines3.common.atari_wrappers import (  # isort:skip
     NoopResetEnv,
 )
 
+import envpool
 from gymnasium.spaces.box import Box
 
 from tinyllava.model.builder import load_pretrained_model
@@ -90,11 +91,50 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    # Arguments for VLM
     use_vlm: bool = False
     """Uses VLM to extract hidden state embedding"""
     load_4bit: bool = False
     """Uses 4bit VLM, if False will use torch.compile at fp16"""
 
+    # Extra options
+    use_lstm: bool = False
+    """Uses LSTM network"""
+    use_envpool: bool = False
+    """Uses envpool instead of regular gym envs"""
+
+class RecordEpisodeStatistics(gym.Wrapper):
+    def __init__(self, env, deque_size=100):
+        super().__init__(env)
+        self.num_envs = getattr(env, "num_envs", 1)
+        self.episode_returns = None
+        self.episode_lengths = None
+
+    def reset(self, **kwargs):
+        observations = super().reset(**kwargs)
+        self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
+        self.episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
+        self.lives = np.zeros(self.num_envs, dtype=np.int32)
+        self.returned_episode_returns = np.zeros(self.num_envs, dtype=np.float32)
+        self.returned_episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
+        return observations
+
+    def step(self, action):
+        observations, rewards, dones, infos = super().step(action)
+        self.episode_returns += infos["reward"]
+        self.episode_lengths += 1
+        self.returned_episode_returns[:] = self.episode_returns
+        self.returned_episode_lengths[:] = self.episode_lengths
+        self.episode_returns *= 1 - infos["terminated"]
+        self.episode_lengths *= 1 - infos["terminated"]
+        infos["r"] = self.returned_episode_returns
+        infos["l"] = self.returned_episode_lengths
+        return (
+            observations,
+            rewards,
+            dones,
+            infos,
+        )
 
 def make_env(env_id, idx, capture_video, run_name):
     def thunk():
@@ -242,17 +282,35 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
-    envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
-    )
-    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    if args.use_envpool:
+        import gym
+        # env setup
+        envs = envpool.make(
+            args.env_id,
+            env_type="gym",
+            num_envs=args.num_envs,
+            episodic_life=True,
+            reward_clip=True,
+            stack_num=0,
+            seed=args.seed,
+        )
+        envs.num_envs = args.num_envs
+        envs.single_action_space = envs.action_space
+        envs.single_observation_space = envs.observation_space
+        envs = RecordEpisodeStatistics(envs)
+        
+    else:
+        import gymnasium as gym
+        envs = gym.vector.SyncVectorEnv(
+            [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
+        )
 
     if args.use_vlm:
-        envs.single_observation_space = Box(low=-10000, high=10000, shape=(2048,))
-        envs.observation_space = Box(low=-10000, high=10000, shape=(args.num_envs, 2048))
+        envs.single_observation_space = Box(low=-100, high=100, shape=(2048,))
+        envs.observation_space = Box(low=-100, high=100, shape=(args.num_envs, 2048))
     else:
-        envs.single_observation_space = Box(low=-10000, high=10000, shape=(7056,))
-        envs.observation_space = Box(low=-10000, high=10000, shape=(args.num_envs, 7056))
+        envs.single_observation_space = Box(low=0, high=255, shape=(7056,))
+        envs.observation_space = Box(low=-0, high=255, shape=(args.num_envs, 7056))
 
     agent = AgentEmb(envs).to(device).half()
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -269,7 +327,10 @@ if __name__ == "__main__":
     global_step = 0
     start_time = time.time()
     next_done = torch.zeros(args.num_envs).to(device).half()
-    next_obs, _ = envs.reset(seed=args.seed)
+    if args.use_envpool:
+        next_obs = envs.reset()
+    else:
+        next_obs, _ = envs.reset(seed=args.seed)
     next_lstm_state = (
         torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
         torch.zeros(agent.lstm.num_layers, args.num_envs, agent.lstm.hidden_size).to(device).half(),
