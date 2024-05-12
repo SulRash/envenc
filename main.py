@@ -92,6 +92,8 @@ class Args:
 
     use_vlm: bool = False
     """Uses VLM to extract hidden state embedding"""
+    load_4bit: bool = False
+    """Uses 4bit VLM, if False will use torch.compile at fp16"""
 
 
 def make_env(env_id, idx, capture_video, run_name):
@@ -202,14 +204,24 @@ if __name__ == "__main__":
     if args.use_vlm:
         model_path = "bczhou/TinyLLaVA-2.0B"
 
-        tokenizer, model, vision_tower, context_len = load_pretrained_model(
-            model_path=model_path,
-            model_base=None,
-            model_name=get_model_name_from_path(model_path)
-        )
+        if args.load_4bit:
+            tokenizer, model, vision_tower, context_len = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = vision_tower.image_processor
 
-        image_processor = torch.compile(vision_tower).image_processor
-        model = torch.compile(model)
+        else:
+            tokenizer, model, vision_tower, context_len = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = torch.compile(vision_tower).image_processor
+            model = torch.compile(model)
 
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
