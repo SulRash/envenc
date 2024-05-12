@@ -1,4 +1,5 @@
 import torch
+import torchvision
 import requests
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
@@ -49,27 +50,21 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
     for i in range(len(input_ids)):
         input_ids[i] = tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors='pt')[0].unsqueeze(0).to(model.device)
 
+    images = []
     for image_array in image_arrays:
+        images.append(torchvision.transforms.ToPILImage()(image_array))
+        image_tensor = process_images(images, image_processor, model.config)
 
-        
-
-
-        import torchvision
-        image = torchvision.transforms.ToPILImage()(image_array)
-        image_tensor = process_images([image], image_processor, model.config)
-
-        if type(image_tensor) is list:
-            image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
-        else:
-            image_tensor = image_tensor.to(model.device, dtype=torch.float16)
-        image_tensors[i] = image_tensor[0]
-
+    if type(image_tensor) is list:
+        image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+    else:
+        image_tensor = image_tensor.to(model.device, dtype=torch.float16)
 
 
     with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
         output_ids = model.generate(
             input_ids,
-            images=image_tensors,
+            images=image_tensor,
             do_sample=False,
             max_new_tokens=1,
             pad_token_id=tokenizer.eos_token_id,
