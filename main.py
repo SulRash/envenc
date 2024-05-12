@@ -53,7 +53,7 @@ class Args:
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 4
+    num_envs: int = 8
     """the number of parallel game environments"""
     num_steps: int = 128
     """the number of steps to run in each environment per policy rollout"""
@@ -167,7 +167,6 @@ class AgentEmb(nn.Module):
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
 
 
-
 if __name__ == "__main__":
     args = tyro.cli(Args)
     args.batch_size = int(args.num_envs * args.num_steps)
@@ -245,9 +244,9 @@ if __name__ == "__main__":
 
     if args.use_vlm:
         next_all_obs = torch.zeros((args.num_envs,) + envs.single_observation_space.shape).to(device).half()
-        for i in range(args.num_envs):
-            next_all_obs[i] = infer_no_lm(tokenizer, model, image_processor, next_obs[i])
-        next_obs = next_all_obs
+        # for i in range(args.num_envs):
+        #     next_all_obs[i] = infer_no_lm(tokenizer, model, image_processor, next_obs[i])
+        next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
     else:
         next_obs = torch.Tensor(next_obs).to(device).half().reshape(args.num_envs, -1)
 
