@@ -252,6 +252,7 @@ if __name__ == "__main__":
         num_envs=args.num_envs,
         episodic_life=True,
         reward_clip=True,
+        stack_num=1,
         seed=args.seed,
     )
     envs.num_envs = args.num_envs
@@ -286,7 +287,7 @@ if __name__ == "__main__":
     next_done = torch.zeros(args.num_envs).to(device)
 
     if args.use_vlm:
-        next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
+        next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs.squeeze()).to(dtype=torch.float32)
 
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -313,7 +314,7 @@ if __name__ == "__main__":
             next_done = torch.Tensor(next_done).to(device)
 
             if args.use_vlm:
-                next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
+                next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs.squeeze()).to(dtype=torch.float32)
             else:
                 next_obs = torch.Tensor(next_obs).to(device)
 
