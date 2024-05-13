@@ -15,6 +15,12 @@ import tyro
 from torch.distributions.categorical import Categorical
 from torch.utils.tensorboard import SummaryWriter
 
+from gym.spaces.box import Box
+
+from tinyllava.model.builder import load_pretrained_model
+from tinyllava.mm_utils import get_model_name_from_path
+
+from serve import infer_no_lm
 
 @dataclass
 class Args:
@@ -78,6 +84,12 @@ class Args:
     """the mini-batch size (computed in runtime)"""
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
+
+    # Arguments for VLM
+    use_vlm: bool = False
+    """Uses VLM to extract hidden state embedding"""
+    load_4bit: bool = False
+    """Uses 4bit VLM, if False will use torch.compile at fp16"""
 
 
 class RecordEpisodeStatistics(gym.Wrapper):
@@ -148,13 +160,43 @@ class Agent(nn.Module):
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
+class AgentMLP(nn.Module):
+    def __init__(self, envs):
+        super().__init__()
+        self.network = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
+            nn.Tanh(),
+            layer_init(nn.Linear(4096, 1024)),
+            nn.Tanh(),
+            layer_init(nn.Linear(1024, 1024)),
+            nn.Tanh(),
+            layer_init(nn.Linear(1024, 512)),
+            nn.Tanh(),
+            layer_init(nn.Linear(512, 512)),
+            nn.Tanh(),
+        )
+
+        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(512, 1), std=1)
+
+    def get_value(self, x):
+        return self.critic(self.network(x))
+
+    def get_action_and_value(self, x, action=None):
+        hidden = self.network(x)
+        logits = self.actor(hidden)
+        probs = Categorical(logits=logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
+
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__vlm-{args.use_vlm}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -179,6 +221,28 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
 
+    if args.use_vlm:
+        model_path = "bczhou/TinyLLaVA-2.0B"
+
+        if args.load_4bit:
+            tokenizer, model, vision_tower, context_len = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = vision_tower.image_processor
+
+        else:
+            tokenizer, model, vision_tower, context_len = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = torch.compile(vision_tower).image_processor
+            model = torch.compile(model)
+
     device = torch.device("cuda" if torch.cuda.is_available() and args.cuda else "cpu")
 
     # env setup
@@ -196,7 +260,14 @@ if __name__ == "__main__":
     envs = RecordEpisodeStatistics(envs)
     assert isinstance(envs.action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    agent = Agent(envs).to(device)
+    # Not sure if this is correct to include actually?
+    if args.use_vlm:
+        envs.single_observation_space = Box(low=-10, high=10, shape=(2048,))
+        envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, 2048))
+        agent = AgentMLP(envs).to(device)
+    else:
+        agent = Agent(envs).to(device)
+
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -213,6 +284,9 @@ if __name__ == "__main__":
     start_time = time.time()
     next_obs = torch.Tensor(envs.reset()).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
+
+    if args.use_vlm:
+        next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
 
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -236,7 +310,12 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, next_done, info = envs.step(action.cpu().numpy())
             rewards[step] = torch.tensor(reward).to(device).view(-1)
-            next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
+            next_done = torch.Tensor(next_done).to(device)
+
+            if args.use_vlm:
+                next_obs = infer_no_lm(tokenizer, model, image_processor, next_obs)
+            else:
+                next_obs = torch.Tensor(next_obs).to(device)
 
             for idx, d in enumerate(next_done):
                 if d and info["lives"][idx] == 0:
