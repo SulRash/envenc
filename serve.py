@@ -7,12 +7,59 @@ from tinyllava.conversation import Conversation, SeparatorStyle
 from tinyllava.utils import disable_torch_init
 from tinyllava.mm_utils import process_images, tokenizer_image_token
 
-from PIL import Image
-from io import BytesIO
+def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cuda"):
+    vlms = ['tinyllava', 'idefics']
+
+    if vlm == 'tinyllava':
+        from tinyllava.model.builder import load_pretrained_model
+        from tinyllava.mm_utils import get_model_name_from_path
+
+        model_path = "bczhou/TinyLLaVA-2.0B"
+
+        if load_4bit:
+            processor, model, vision_tower, _ = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = vision_tower.image_processor
+
+        else:
+            processor, model, vision_tower, _ = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=False
+            )
+            image_processor = torch.compile(vision_tower).image_processor
+            model = torch.compile(model)
+
+    elif vlm == 'idefics':
+        from transformers import AutoProcessor, AutoModelForVision2Seq
+
+        processor = AutoProcessor.from_pretrained('HuggingFaceM4/idefics2-8b')
+        model = AutoModelForVision2Seq.from_pretrained(
+            'HuggingFaceM4/idefics2-8b',
+            torch_dtype=torch.float16,
+            _attn_implementation="flash_attention_2"
+        ).to(device)
+        image_processor = None
+        model = torch.compile(model)
+
+    else:
+        raise(f"Invalid VLM choice! Possible options: {vlms}")
+
+    return {
+        'processor': processor,
+        'model': model,
+        'image_processor': image_processor
+    }
+
 
 def infer_tinyllava(image_arrays, **kwargs):
     disable_torch_init()
-    
+
     tokenizer, model, image_processor = kwargs['processor'], kwargs['model'], kwargs['image_processor']
 
     input_ids = torch.zeros((image_arrays.shape[0], 49), dtype=torch.long).to(model.device)
