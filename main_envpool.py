@@ -48,7 +48,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 10000000
     """total timesteps of the experiments"""
-    learning_rate: float = 2.8e-3
+    learning_rate: float = 3.0e-3
     """the learning rate of the optimizer"""
     num_envs: int = 8
     """the number of parallel game environments"""
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__vlm-{args.use_vlm}-{args.vlm}__{int(time.time())}"
+    run_name = f"{args.env_id}__num_env_{args.num_envs}__{args.exp_name}__{args.seed}__vlm-{args.use_vlm}-{args.vlm}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -242,6 +242,7 @@ if __name__ == "__main__":
         episodic_life=True,
         reward_clip=True,
         stack_num=1,
+        frame_skip=5,
         gray_scale=gray_scale,
         seed=args.seed,
     )
