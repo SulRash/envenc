@@ -150,6 +150,47 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
 
+class AgentBigCNN(nn.Module):
+
+    # This network has around ~10m parameters
+    # We use 1x1 convolutions in the first layer for dimensionality reduction
+
+    def __init__(self, envs):
+        super().__init__()
+        self.network = nn.Sequential(
+            layer_init(nn.Conv2d(1, 16, 1, stride=1)),  # 1x1 convolution for dimensionality reduction
+            nn.ReLU(),
+            layer_init(nn.Conv2d(16, 32, 3, stride=2, padding=1)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(32, 32, 1, stride=1)),  # 1x1 convolution for dimensionality reduction
+            nn.ReLU(),
+            layer_init(nn.Conv2d(32, 64, 3, stride=2, padding=1)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(64, 128, 3, stride=2, padding=1)),
+            nn.ReLU(),
+            layer_init(nn.Conv2d(128, 256, 3, stride=2, padding=1)),
+            nn.ReLU(),
+            nn.Flatten(),
+            layer_init(nn.Linear(256 * 4 * 4, 2048)),
+            nn.ReLU(),
+            layer_init(nn.Linear(2048, 1024)),
+            nn.ReLU(),
+            layer_init(nn.Linear(1024, 512)),
+            nn.ReLU(),
+        )
+        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(512, 1), std=1)
+
+    def get_value(self, x):
+        return self.critic(self.network(x / 255.0))
+
+    def get_action_and_value(self, x, action=None):
+        hidden = self.network(x / 255.0)
+        logits = self.actor(hidden)
+        probs = Categorical(logits=logits)
+        if action is None:
+            action = probs.sample()
+        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
 
 class AgentCNN(nn.Module):
     def __init__(self, envs, use_vlm: bool = True):
@@ -284,11 +325,13 @@ if __name__ == "__main__":
         agent = AgentMLP(envs).to(device)
     elif args.network == "cnn":
         agent = AgentCNN(envs, args.use_vlm).to(device)
+    elif args.network == "bigcnn":
+        agent = AgentBigCNN(envs).to(device)
 
     if args.use_vlm and args.network == "mlp":
         envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, model_dict['hidden_size']))
-    elif args.use_vlm and args.network == "cnn":
+    elif args.use_vlm and "cnn" in args.network:
         hidden_box = int(sqrt(model_dict['hidden_size']))
         envs.single_observation_space = Box(low=-10, high=10, shape=(1, hidden_box, hidden_box))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, 1, hidden_box, hidden_box))
@@ -312,7 +355,7 @@ if __name__ == "__main__":
 
     if args.use_vlm and args.network == "mlp":
         next_obs = inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32)
-    elif args.use_vlm and args.network == "cnn":
+    elif args.use_vlm and "cnn" in args.network:
         next_obs = preprocess(inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32), model_dict['hidden_size']).reshape(args.num_envs, 1, hidden_box, hidden_box)
 
     for iteration in range(1, args.num_iterations + 1):
@@ -345,7 +388,7 @@ if __name__ == "__main__":
 
             if args.use_vlm and args.network == "mlp":
                 next_obs = inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32)
-            elif args.use_vlm and args.network == "cnn":
+            elif args.use_vlm and "cnn" in args.network:
                 next_obs = preprocess(inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32), model_dict['hidden_size']).reshape(args.num_envs, 1, hidden_box, hidden_box)
 
             for idx, d in enumerate(next_done):
