@@ -155,12 +155,12 @@ class AgentCNN(nn.Module):
     def __init__(self, envs, use_vlm: bool = True):
         super().__init__()
         if use_vlm:
-            flattened = 1024
+            flattened = 64 * 11 * 11
         else:
             flattened = 64 * 7 * 7
         self.network = nn.Sequential(
             # Takes stack_num as number of channels
-            layer_init(nn.Conv2d(1, 32, 8, stride=4)),
+            layer_init(nn.Conv2d(1, 32, 8, stride=2)),
             nn.ReLU(),
             layer_init(nn.Conv2d(32, 64, 4, stride=2)),
             nn.ReLU(),
