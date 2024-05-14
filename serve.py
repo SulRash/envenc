@@ -34,6 +34,8 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
             )
             image_processor = torch.compile(vision_tower).image_processor
             model = torch.compile(model)
+        
+        hidden_size = 2048
 
     elif vlm == 'idefics':
         from transformers import AutoProcessor, AutoModelForVision2Seq
@@ -50,6 +52,7 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
         ).to(device)
         image_processor = None
         model = torch.compile(model)
+        hidden_size = '4096'
 
     else:
         raise(f"Invalid VLM choice! Possible options: {vlms}")
@@ -57,7 +60,8 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
     return {
         'processor': processor,
         'model': model,
-        'image_processor': image_processor
+        'image_processor': image_processor,
+        'hidden_size': hidden_size
     }
 
 
@@ -150,11 +154,6 @@ def infer_idefics(image_arrays, device = 'cuda', **kwargs):
     for image_array in image_arrays:
         # Adding a list of a single image since each list in the input corresponds to one user interaction
         images.append([torchvision.transforms.ToPILImage()(image_array)])
-
-    # input_ids = []
-    # attention_mask = []
-    # pixel_values = []
-    # pixel_attention_mask = []
 
     messages = [[
         {
