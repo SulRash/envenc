@@ -10,9 +10,11 @@ from tinyllava.mm_utils import process_images, tokenizer_image_token
 from PIL import Image
 from io import BytesIO
 
-def infer_tinyllava(tokenizer, model, image_processor, image_arrays):
+def infer_tinyllava(image_arrays, **kwargs):
     disable_torch_init()
     
+    tokenizer, model, image_processor = kwargs['processor'], kwargs['model'], kwargs['image_processor']
+
     input_ids = torch.zeros((image_arrays.shape[0], 49), dtype=torch.long).to(model.device)
     i = 0
 
