@@ -38,7 +38,11 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
     elif vlm == 'idefics':
         from transformers import AutoProcessor, AutoModelForVision2Seq
 
-        processor = AutoProcessor.from_pretrained('HuggingFaceM4/idefics2-8b')
+        processor = AutoProcessor.from_pretrained(
+            'HuggingFaceM4/idefics2-8b',
+            size={"longest_edge": 84, "shortest_edge": 84}
+        )
+
         model = AutoModelForVision2Seq.from_pretrained(
             'HuggingFaceM4/idefics2-8b',
             torch_dtype=torch.float16,
@@ -144,30 +148,41 @@ def infer_idefics(image_arrays, device = 'cuda', **kwargs):
     # Note that passing the image urls (instead of the actual pil images) to the processor is also possible
     images = []
     for image_array in image_arrays:
-        images.append(torchvision.transforms.ToPILImage()(image_array))
+        # Adding a list of a single image since each list in the input corresponds to one user interaction
+        images.append([torchvision.transforms.ToPILImage()(image_array)])
 
+    # input_ids = []
+    # attention_mask = []
+    # pixel_values = []
+    # pixel_attention_mask = []
+
+    messages = [[
+        {
+            'role': 'user',
+            'content': [
+                {'type': 'image'},
+                {'type': 'text', 'text': 'What is the best move for the player in the image of this atari game in one word?'},
+            ]
+        } 
+    ]] * len(images)
+
+    # Handles batching by giving list of lists
+    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+
+    # dict_keys(['input_ids', 'attention_mask', 'pixel_values', 'pixel_attention_mask'])
+    input_ids = processor(text=prompt, images=images, return_tensors='pt')
+    input_ids = {k: v.to(device) for k, v in input_ids.items()}
+
+    output_ids = model.generate(
+        **input_ids,
+        do_sample=False,
+        max_new_tokens=50,
+        return_dict_in_generate=True,
+        output_hidden_states=True,
+        use_cache=True
+    )
     
-    input_ids = []
-    for image in images:
-        # Create inputs
-        messages = [
-            {
-                'role': 'user',
-                'content': [
-                    {'type': 'image'},
-                    {'type': 'text', 'text': 'What is the best move for the player in this image in one word?'},
-                ]
-            } 
-        ]
-        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+    hidden_states = output_ids.hidden_states[0][-1]
 
-        input_id = processor(text=prompt, images=[image], return_tensors='pt')
-        input_ids = {k: v.to(device) for k, v in input_id.items()}
-        print(input_ids)
-        exit()
-
-        # Generate
-        generated_ids = model.generate(**input_ids, max_new_tokens=500)
-        generated_texts = processor.batch_decode([generated_ids], skip_special_tokens=True)
-
-    print(generated_texts)
+    print(hidden_states.shape)
+    exit()
