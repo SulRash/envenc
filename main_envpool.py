@@ -254,8 +254,8 @@ if __name__ == "__main__":
 
     # Not sure if this is correct to include actually?
     if args.use_vlm:
-        envs.single_observation_space = Box(low=-10, high=10, shape=(2048,))
-        envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, 2048))
+        envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
+        envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, model_dict['hidden_size']))
         agent = AgentMLP(envs).to(device)
     else:
         agent = Agent(envs).to(device)
