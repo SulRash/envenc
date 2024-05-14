@@ -176,13 +176,18 @@ def infer_idefics(image_arrays, device = 'cuda', **kwargs):
     output_ids = model.generate(
         **input_ids,
         do_sample=False,
-        max_new_tokens=50,
+        max_new_tokens=1,
         return_dict_in_generate=True,
         output_hidden_states=True,
         use_cache=True
     )
     
-    hidden_states = output_ids.hidden_states[0][-1]
+    # Hidden states is tuple (one for each generated token) of tuple (number of layers)
+    # Dimensions inside tuple-tuple are [batch size, generated_length, hidden_size]
+    hidden_states = output_ids.hidden_states[-1][-1]
 
-    print(hidden_states.shape)
-    exit()
+    # https://stackoverflow.com/questions/76926025/sentence-embeddings-from-llama-2-huggingface-opensource
+    idx_of_the_last_non_padding_token = input_ids['attention_mask'].bool().sum(1)-1
+    sentence_embeddings = hidden_states[torch.arange(hidden_states.shape[0]), idx_of_the_last_non_padding_token]
+
+    return sentence_embeddings
