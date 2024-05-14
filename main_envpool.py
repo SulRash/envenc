@@ -2,6 +2,7 @@
 import os
 import random
 import time
+from math import sqrt
 from collections import deque
 from dataclasses import dataclass
 
@@ -18,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from gym.spaces.box import Box
 
-from serve import load_model, infer_tinyllava, infer_idefics
+from serve import load_model, infer_tinyllava, infer_idefics, preprocess
 
 infer = {
     "tinyllava": infer_tinyllava,
@@ -150,7 +151,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-class Agent(nn.Module):
+class AgentCNN(nn.Module):
     def __init__(self, envs):
         super().__init__()
         self.network = nn.Sequential(
@@ -278,12 +279,15 @@ if __name__ == "__main__":
     if args.network == "mlp":
         agent = AgentMLP(envs).to(device)
     elif args.network == "cnn":
-        agent = Agent(envs).to(device)
+        agent = AgentCNN(envs).to(device)
 
-    if args.use_vlm:
-        # Not sure if this is correct to include actually?
+    if args.use_vlm and args.network == "mlp":
         envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, model_dict['hidden_size']))
+    elif args.use_vlm and args.network == "cnn":
+        hidden_box = int(sqrt(model_dict['hidden_size']))
+        envs.single_observation_space = Box(low=-10, high=10, shape=(1, hidden_box, hidden_box))
+        envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, 1, hidden_box, hidden_box))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
@@ -302,8 +306,10 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(envs.reset()).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
-    if args.use_vlm:
+    if args.use_vlm and args.network == "mlp":
         next_obs = inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32)
+    elif args.use_vlm and args.network == "cnn":
+        next_obs = preprocess(inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32), model_dict['hidden_size']).reshape(args.num_envs, 1, hidden_box, hidden_box)
 
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
@@ -333,8 +339,10 @@ if __name__ == "__main__":
             next_obs = torch.Tensor(next_obs).to(device)
             next_done = torch.Tensor(next_done).to(device)
 
-            if args.use_vlm:
+            if args.use_vlm and args.network == "mlp":
                 next_obs = inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32)
+            elif args.use_vlm and args.network == "cnn":
+                next_obs = preprocess(inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32), model_dict['hidden_size']).reshape(args.num_envs, 1, hidden_box, hidden_box)
 
             for idx, d in enumerate(next_done):
                 if d and info["lives"][idx] == 0:

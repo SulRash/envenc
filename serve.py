@@ -1,11 +1,22 @@
 import torch
 import torchvision
-import requests
+from math import sqrt
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from tinyllava.conversation import Conversation, SeparatorStyle
 from tinyllava.utils import disable_torch_init
 from tinyllava.mm_utils import process_images, tokenizer_image_token
+
+def preprocess(tensor, hidden_size):
+    min_value = tensor.min()
+    max_value = tensor.max()
+    normalized_tensor = (tensor - min_value) / (max_value - min_value) * 255
+
+    batch_size = tensor.shape[0]
+    box = int(sqrt(hidden_size))
+
+    return normalized_tensor.reshape(batch_size, box, box)
+
 
 def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cuda"):
     vlms = ['tinyllava', 'idefics']
