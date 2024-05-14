@@ -167,32 +167,39 @@ class Agent(nn.Module):
 class AgentMLP(nn.Module):
     def __init__(self, envs):
         super().__init__()
-        self.network = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 4096)),
+        self.actor = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
             nn.Tanh(),
-            layer_init(nn.Linear(4096, 1024)),
+            layer_init(nn.Linear(12800, 5184)),
             nn.Tanh(),
-            layer_init(nn.Linear(1024, 1024)),
+            layer_init(nn.Linear(5184, 3136)),
             nn.Tanh(),
-            layer_init(nn.Linear(1024, 512)),
+            layer_init(nn.Linear(3136, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(512, 512)),
-            nn.Tanh(),
+            layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
         )
 
-        self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
-        self.critic = layer_init(nn.Linear(512, 1), std=1)
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
+            nn.Tanh(),
+            layer_init(nn.Linear(12800, 5184)),
+            nn.Tanh(),
+            layer_init(nn.Linear(5184, 3136)),
+            nn.Tanh(),
+            layer_init(nn.Linear(3136, 512)),
+            nn.Tanh(),
+            layer_init(nn.Linear(512, 1), std=1)
+        )
 
     def get_value(self, x):
-        return self.critic(self.network(x))
+        return self.critic(x)
 
     def get_action_and_value(self, x, action=None):
-        hidden = self.network(x)
-        logits = self.actor(hidden)
+        logits = self.actor(x)
         probs = Categorical(logits=logits)
         if action is None:
             action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(hidden)
+        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
 
 
 if __name__ == "__main__":
