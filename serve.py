@@ -42,7 +42,8 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
 
         processor = AutoProcessor.from_pretrained(
             'HuggingFaceM4/idefics2-8b',
-            size={"longest_edge": 84, "shortest_edge": 84}
+            size={"longest_edge": 84, "shortest_edge": 84},
+            do_image_splitting=False
         )
 
         model = AutoModelForVision2Seq.from_pretrained(
