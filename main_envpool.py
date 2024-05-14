@@ -431,7 +431,7 @@ if __name__ == "__main__":
             last_two_dist = average_distance(obs[-1], obs[-2])
             print(f"distance between last two vectors in obs storage is: {last_two_dist}")
             rand_two_dist = average_distance(obs[random.randint(0,len(obs)-1)], obs[random.randint(0,len(obs)-1)])
-            print(f"distance between last two vectors in obs storage is: {rand_two_dist}")
+            print(f"distance between random two vectors in obs storage is: {rand_two_dist}")
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
     envs.close()
