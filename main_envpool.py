@@ -318,7 +318,10 @@ if __name__ == "__main__":
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(next_obs)
+                if args.network == "mlp":
+                    action, logprob, _, value = agent.get_action_and_value(next_obs.reshape(args.num_envs, -1))
+                else:
+                    action, logprob, _, value = agent.get_action_and_value(next_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
@@ -342,7 +345,10 @@ if __name__ == "__main__":
 
         # bootstrap value if not done
         with torch.no_grad():
-            next_value = agent.get_value(next_obs).reshape(1, -1)
+            if args.network == "mlp":
+                next_value = agent.get_value(next_obs.reshape(args.num_envs, -1)).reshape(1, -1)
+            else:
+                next_value = agent.get_value(next_obs).reshape(1, -1)
             advantages = torch.zeros_like(rewards).to(device)
             lastgaelam = 0
             for t in reversed(range(args.num_steps)):
@@ -373,7 +379,10 @@ if __name__ == "__main__":
                 end = start + args.minibatch_size
                 mb_inds = b_inds[start:end]
 
-                _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
+                if args.network == "mlp":
+                    _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds].reshape(b_obs[mb_inds].shape[0], -1), b_actions.long()[mb_inds])
+                else:
+                    _, newlogprob, entropy, newvalue = agent.get_action_and_value(b_obs[mb_inds], b_actions.long()[mb_inds])
                 logratio = newlogprob - b_logprobs[mb_inds]
                 ratio = logratio.exp()
 
