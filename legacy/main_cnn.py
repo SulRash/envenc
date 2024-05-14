@@ -52,7 +52,7 @@ class Args:
     """the id of the environment"""
     total_timesteps: int = 5000000
     """total timesteps of the experiments"""
-    learning_rate: float = 6e-4
+    learning_rate: float = 1.5e-4
     """the learning rate of the optimizer"""
     num_envs: int = 16
     """the number of parallel game environments"""
@@ -76,7 +76,7 @@ class Args:
     """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
     ent_coef: float = 0.01
     """coefficient of the entropy"""
-    vf_coef: float = 0.5
+    vf_coef: float = 0.45
     """coefficient of the value function"""
     max_grad_norm: float = 0.5
     """the maximum norm for the gradient clipping"""
