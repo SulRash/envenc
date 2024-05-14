@@ -52,7 +52,7 @@ def load_model(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cud
         ).to(device)
         image_processor = None
         model = torch.compile(model)
-        hidden_size = '4096'
+        hidden_size = 4096
 
     else:
         raise(f"Invalid VLM choice! Possible options: {vlms}")
