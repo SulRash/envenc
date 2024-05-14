@@ -95,6 +95,9 @@ class Args:
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
 
+    network: str = "mlp"
+    """Network to use for rl agent"""
+
     # Arguments for VLM
     use_vlm: bool = False
     """Uses VLM to extract hidden state embedding"""
@@ -218,7 +221,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__num_env_{args.num_envs}__{args.exp_name}__{args.seed}__vlm-{args.use_vlm}-{args.vlm}__{int(time.time())}"
+    run_name = f"{args.env_id}__num_env_{args.num_envs}__{args.exp_name}__{args.network}__{args.seed}__vlm-{args.use_vlm}-{args.vlm}__{int(time.time())}"
     if args.track:
         import wandb
 
@@ -271,13 +274,15 @@ if __name__ == "__main__":
     envs = RecordEpisodeStatistics(envs)
     assert isinstance(envs.action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    # Not sure if this is correct to include actually?
+    if args.network == "mlp":
+        agent = AgentMLP(envs).to(device)
+    elif args.network == "cnn":
+        agent = Agent(envs).to(device)
+
     if args.use_vlm:
+        # Not sure if this is correct to include actually?
         envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, model_dict['hidden_size']))
-        agent = AgentMLP(envs).to(device)
-    else:
-        agent = Agent(envs).to(device)
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
