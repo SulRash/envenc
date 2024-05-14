@@ -152,8 +152,12 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 class AgentCNN(nn.Module):
-    def __init__(self, envs):
+    def __init__(self, envs, use_vlm: bool = True):
         super().__init__()
+        if use_vlm:
+            flattened = 1024
+        else:
+            flattened = 64 * 7 * 7
         self.network = nn.Sequential(
             # Takes stack_num as number of channels
             layer_init(nn.Conv2d(1, 32, 8, stride=4)),
@@ -163,7 +167,7 @@ class AgentCNN(nn.Module):
             layer_init(nn.Conv2d(64, 64, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            layer_init(nn.Linear(64 * 7 * 7, 512)),
+            layer_init(nn.Linear(flattened, 512)),
             nn.ReLU(),
         )
         self.actor = layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
@@ -279,7 +283,7 @@ if __name__ == "__main__":
     if args.network == "mlp":
         agent = AgentMLP(envs).to(device)
     elif args.network == "cnn":
-        agent = AgentCNN(envs).to(device)
+        agent = AgentCNN(envs, args.use_vlm).to(device)
 
     if args.use_vlm and args.network == "mlp":
         envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
