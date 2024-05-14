@@ -10,6 +10,7 @@ import gym
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import tyro
 from torch.distributions.categorical import Categorical
@@ -23,6 +24,13 @@ infer = {
     "tinyllava": infer_tinyllava,
     "idefics": infer_idefics
 }
+
+def average_distance(t1, t2):
+    assert t1.shape == t2.shape, "Tensors must have the same shape"
+    distances = torch.norm(t1 - t2, dim=1)
+    avg_distance = torch.mean(distances)
+
+    return avg_distance
 
 @dataclass
 class Args:
@@ -94,6 +102,9 @@ class Args:
     """Uses 4bit VLM, if False will use torch.compile at fp16"""
     vlm: str = "idefics"
     """Chooses which VLM to use"""
+
+    # Utilities
+    verbose: bool = False
 
 
 class RecordEpisodeStatistics(gym.Wrapper):
@@ -416,6 +427,11 @@ if __name__ == "__main__":
         writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
+        if args.verbose and args.use_vlm:
+            last_two_dist = average_distance(obs[-1], obs[-2])
+            print(f"distance between last two vectors in obs storage is: {last_two_dist}")
+            rand_two_dist = average_distance(obs[random.randint(0,len(obs)-1)], obs[random.randint(0,len(obs)-1)])
+            print(f"distance between last two vectors in obs storage is: {last_two_dist}")
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
     envs.close()
