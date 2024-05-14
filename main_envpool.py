@@ -302,12 +302,11 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             next_obs, reward, next_done, info = envs.step(action.cpu().numpy())
             rewards[step] = torch.tensor(reward).to(device).view(-1)
+            next_obs = torch.Tensor(next_obs).to(device)
             next_done = torch.Tensor(next_done).to(device)
 
             if args.use_vlm:
                 next_obs = inference(next_obs.squeeze(), **model_dict).to(dtype=torch.float32)
-            else:
-                next_obs = torch.Tensor(next_obs).to(device)
 
             for idx, d in enumerate(next_done):
                 if d and info["lives"][idx] == 0:
