@@ -10,7 +10,6 @@ from tinyllava.mm_utils import process_images, tokenizer_image_token
 from PIL import Image
 from io import BytesIO
 
-from qwenvl.qwen_generation_utils import make_context, get_stop_words_ids, decode_tokens
 
 def load_image(image_file):
     if image_file.startswith('http://') or image_file.startswith('https://'):
@@ -26,18 +25,18 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
     input_ids = torch.zeros((image_arrays.shape[0], 49), dtype=torch.long).to(model.device)
     i = 0
 
-    inp = "Describe the image in detail."
+    inp = 'Describe the image in detail.'
 
     conv = Conversation(
-        system="A chat between a curious user and an artificial intelligence assistant. "
-           "The assistant gives helpful, detailed, and polite answers to the user's questions.",
-        roles=("USER", "ASSISTANT"),
-        version="phi",
+        system='A chat between a curious user and an artificial intelligence assistant. '
+           'The assistant gives helpful, detailed, and polite answers to the user's questions.',
+        roles=('USER', 'ASSISTANT'),
+        version='phi',
         messages=[],
         offset=0,
         sep_style=SeparatorStyle.TWO,
-        sep=" ",
-        sep2="<|endoftext|>",
+        sep=' ',
+        sep2='<|endoftext|>',
     )
 
     if model.config.mm_use_im_start_end:
@@ -104,8 +103,8 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
 #         tokenizer,
 #         model,
 #         image_arrays,
-#         device: str = "cuda",
-#         system: str = "You are a helpful AI game guide, assist the user with any queries they ask helpfully and intelligently.",
+#         device: str = 'cuda',
+#         system: str = 'You are a helpful AI game guide, assist the user with any queries they ask helpfully and intelligently.',
 #         decode: bool = False
 #     ):
 
@@ -154,3 +153,86 @@ def infer_no_lm(tokenizer, model, image_processor, image_arrays):
 #         print(response)
 
 #     print(outputs)
+
+
+
+def infer_idefics(image_arrays, device = 'cuda', **kwargs):
+
+    processor = kwargs['processor']
+    model = kwargs['model']
+
+    # Note that passing the image urls (instead of the actual pil images) to the processor is also possible
+    images = []
+    for image_array in image_arrays:
+        images.append(torchvision.transforms.ToPILImage()(image_array))
+
+    
+    input_ids = []
+    for image in images:
+        # Create inputs
+        messages = [
+            {
+                'role': 'user',
+                'content': [
+                    {'type': 'image'},
+                    {'type': 'text', 'text': 'What is the best move for the player in this image in one word?'},
+                ]
+            } 
+        ]
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+
+        input_id = processor(text=prompt, images=[image], return_tensors='pt')
+        input_ids = {k: v.to(device) for k, v in input_id.items()}
+        print(input_ids)
+        exit()
+
+        # Generate
+        generated_ids = model.generate(**input_ids, max_new_tokens=500)
+        generated_texts = processor.batch_decode([generated_ids], skip_special_tokens=True)
+
+    print(generated_texts)
+    # ['User: What do we see in this image? \nAssistant: In this image, we can see the city of New York, and more specifically the Statue of Liberty. \nUser: And how about this image? \nAssistant: In this image we can see buildings, trees, lights, water and sky.']
+
+def model_loader(vlm: str = 'idefics', load_4bit: bool = False, device: str = "cuda"):
+    vlms = ['tinyllava', 'idefics']
+
+    if vlm == 'tinyllava':
+        from tinyllava.model.builder import load_pretrained_model
+        from tinyllava.mm_utils import get_model_name_from_path
+
+        model_path = "bczhou/TinyLLaVA-2.0B"
+
+        if load_4bit:
+            processor, model, vision_tower, _ = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=True
+            )
+            image_processor = vision_tower.image_processor
+
+        else:
+            processor, model, vision_tower, _ = load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=get_model_name_from_path(model_path),
+                load_4bit=False
+            )
+            image_processor = torch.compile(vision_tower).image_processor
+            model = torch.compile(model)
+        
+    elif vlm == 'idefics':
+        from transformers import AutoProcessor, AutoModelForVision2Seq
+
+        processor = AutoProcessor.from_pretrained('HuggingFaceM4/idefics2-8b')
+        model = AutoModelForVision2Seq.from_pretrained(
+            'HuggingFaceM4/idefics2-8b',
+            torch_dtype=torch.float16,
+            _attn_implementation="flash_attention_2"
+        ).to(device)
+        image_processor = None
+        model = torch.compile(model)
+    
+    else:
+        raise(f"Invalid VLM choice! Possible options: {vlms}")
+
