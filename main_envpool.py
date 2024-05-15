@@ -200,8 +200,11 @@ class AgentCNN(nn.Module):
         else:
             flattened = 64 * 7 * 7
         self.network = nn.Sequential(
+            # Adding 1x1 Convolution
+            # layer_init(nn.Conv2d(1, 32, 1, stride=1)),
+            # nn.ReLU(),
             # Takes stack_num as number of channels
-            layer_init(nn.Conv2d(1, 32, 8, stride=2)),
+            layer_init(nn.Conv2d(32, 32, 8, stride=2)),
             nn.ReLU(),
             layer_init(nn.Conv2d(32, 64, 4, stride=2)),
             nn.ReLU(),
@@ -228,29 +231,31 @@ class AgentCNN(nn.Module):
 class AgentMLP(nn.Module):
     def __init__(self, envs):
         super().__init__()
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
-            nn.Tanh(),
-            layer_init(nn.Linear(12800, 5184)),
-            nn.Tanh(),
-            layer_init(nn.Linear(5184, 3136)),
-            nn.Tanh(),
-            layer_init(nn.Linear(3136, 512)),
-            nn.Tanh(),
-            layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
-        )
+        # self.actor = nn.Sequential(
+        #     layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(12800, 5184)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(5184, 3136)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(3136, 512)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(512, envs.single_action_space.n), std=0.01)
+        # )
 
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
-            nn.Tanh(),
-            layer_init(nn.Linear(12800, 5184)),
-            nn.Tanh(),
-            layer_init(nn.Linear(5184, 3136)),
-            nn.Tanh(),
-            layer_init(nn.Linear(3136, 512)),
-            nn.Tanh(),
-            layer_init(nn.Linear(512, 1), std=1)
-        )
+        # self.critic = nn.Sequential(
+        #     layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 12800)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(12800, 5184)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(5184, 3136)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(3136, 512)),
+        #     nn.Tanh(),
+        #     layer_init(nn.Linear(512, 1), std=1)
+        # )
+        self.actor = layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), envs.single_action_space.n), std=0.01)
+        self.critic = layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 1), std=1)
 
     def get_value(self, x):
         return self.critic(x)
