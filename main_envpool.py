@@ -326,13 +326,6 @@ if __name__ == "__main__":
     envs = RecordEpisodeStatistics(envs)
     assert isinstance(envs.action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
-    if args.network == "mlp":
-        agent = AgentMLP(envs).to(device)
-    elif args.network == "cnn":
-        agent = AgentCNN(envs, args.use_vlm).to(device)
-    elif args.network == "bigcnn":
-        agent = AgentBigCNN(envs).to(device)
-
     if args.use_vlm and args.network == "mlp":
         envs.single_observation_space = Box(low=-10, high=10, shape=(model_dict['hidden_size'],))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, model_dict['hidden_size']))
@@ -340,6 +333,13 @@ if __name__ == "__main__":
         hidden_box = int(sqrt(model_dict['hidden_size']))
         envs.single_observation_space = Box(low=-10, high=10, shape=(1, hidden_box, hidden_box))
         envs.observation_space = Box(low=-10, high=10, shape=(args.num_envs, 1, hidden_box, hidden_box))
+
+    if args.network == "mlp":
+        agent = AgentMLP(envs).to(device)
+    elif args.network == "cnn":
+        agent = AgentCNN(envs, args.use_vlm).to(device)
+    elif args.network == "bigcnn":
+        agent = AgentBigCNN(envs).to(device)
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
