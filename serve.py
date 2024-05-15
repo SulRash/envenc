@@ -1,5 +1,6 @@
 import torch
 import torchvision
+import functools
 from math import sqrt
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
@@ -155,7 +156,7 @@ def infer_tinyllava(image_arrays, **kwargs):
 
     return merged_out
 
-
+@functools.cache
 def infer_idefics(image_arrays, device = 'cuda', **kwargs):
 
     processor = kwargs['processor']
