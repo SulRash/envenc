@@ -100,7 +100,7 @@ class Args:
     """Network to use for rl agent"""
 
     # Arguments for VLM
-    use_vlm: bool = False
+    use_vlm: bool = True
     """Uses VLM to extract hidden state embedding"""
     load_4bit: bool = False
     """Uses 4bit VLM, if False will use torch.compile at fp16"""

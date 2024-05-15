@@ -5,4 +5,4 @@ python main_envpool.py \
     --num_envs 64 \
     --learning_rate 1.2e-3 \
     --network "mlp" --use_vlm \
-    --track
+    #--track

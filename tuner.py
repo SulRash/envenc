@@ -149,12 +149,12 @@ if __name__ == "__main__":
     tuner = Tuner(
         script="main_envpool.py",
         metric="charts/episodic_return",
-        metric_last_n_average_window=50,
+        metric_last_n_average_window=500,
         direction="maximize",
         aggregation_type="average",
         target_scores={
             # "BreakoutNoFrameskip-v4": [0, 400],
-            "PongNoFrameskip-v4": [-20, 20],
+            "Pong-v5": [-20, 20],
         },
         params_fn=lambda trial: {
             "learning-rate": trial.suggest_float("learning-rate", 0.00005, 0.005, log=True),
@@ -164,10 +164,8 @@ if __name__ == "__main__":
             "vf-coef": trial.suggest_float("vf-coef", 0, 5),
             "clip_coef": trial.suggest_float("clip_coef", 0.1, 0.2),
             "max-grad-norm": trial.suggest_float("max-grad-norm", 0, 4),
-            "total-timesteps": 1100000,
-            "anneal_lr": trial.suggest_categorical("anneal_lr", [True, False]),
-            "num-envs": 64,
-            "use_vlm": True,
+            "total-timesteps": 800000,
+            "num-envs": 128,
             "vlm": "idefics",
             "network": "mlp"
         },
