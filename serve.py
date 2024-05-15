@@ -1,12 +1,13 @@
 import torch
 import torchvision
-import functools
 from math import sqrt
 
 from tinyllava.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN, DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN
 from tinyllava.conversation import Conversation, SeparatorStyle
 from tinyllava.utils import disable_torch_init
 from tinyllava.mm_utils import process_images, tokenizer_image_token
+
+cached_out = {}
 
 def preprocess(tensor, hidden_size):
     min_value = tensor.min()
@@ -156,51 +157,79 @@ def infer_tinyllava(image_arrays, **kwargs):
 
     return merged_out
 
-@functools.cache
-def infer_idefics(image_arrays, device = 'cuda', **kwargs):
+def hash_tensor(tensor):
+    # Convert the tensor to a numpy array
+    array = tensor.cpu().numpy()
+    
+    # Compute the hash using numpy's built-in hash function
+    hash_value = hash(array.tobytes())
+    
+    return hash_value
 
+def infer_idefics(image_arrays, device='cuda', **kwargs):
     processor = kwargs['processor']
     model = kwargs['model']
 
-    # Note that passing the image urls (instead of the actual pil images) to the processor is also possible
-    images = []
-    for image_array in image_arrays:
-        # Adding a list of a single image since each list in the input corresponds to one user interaction
-        images.append([torchvision.transforms.ToPILImage()(image_array)])
+    hashed_arrays = [hash_tensor(tensor) for tensor in image_arrays]
 
-    messages = [[
-        {
-            'role': 'user',
-            'content': [
-                {'type': 'image'},
-                {'type': 'text', 'text': 'What is the best move for the player in the image of this atari game in one word?'},
-            ]
-        } 
-    ]] * len(images)
+    new_batch_arrays = []
+    new_batch_indices = []
+    cached_batch_embeddings = []
+    cached_batch_indices = []
 
-    # Handles batching by giving list of lists
-    prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+    for i, hash_value in enumerate(hashed_arrays):
+        if hash_value in cached_out:
+            cached_batch_embeddings.append(cached_out[hash_value])
+            cached_batch_indices.append(i)
+        else:
+            new_batch_arrays.append(image_arrays[i])
+            new_batch_indices.append(i)
 
-    # dict_keys(['input_ids', 'attention_mask', 'pixel_values', 'pixel_attention_mask'])
-    input_ids = processor(text=prompt, images=images, return_tensors='pt')
-    input_ids = {k: v.to(device) for k, v in input_ids.items()}
+    if new_batch_arrays:
+        images = [[torchvision.transforms.ToPILImage()(image_array)] for image_array in new_batch_arrays]
+        messages = [[
+            {
+                'role': 'user',
+                'content': [
+                    {'type': 'image'},
+                    {'type': 'text', 'text': 'What is the best move for the player in the image of this atari game in one word?'},
+                ]
+            }
+        ]] * len(images)
 
-    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
-        output_ids = model.generate(
-            **input_ids,
-            do_sample=False,
-            max_new_tokens=1,
-            return_dict_in_generate=True,
-            output_hidden_states=True,
-            use_cache=True
-        )
-    
-    # Hidden states is tuple (one for each generated token) of tuple (number of layers)
-    # Dimensions inside tuple-tuple are [batch size, generated_length, hidden_size]
-    hidden_states = output_ids.hidden_states[-1][-1]
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+        input_ids = processor(text=prompt, images=images, return_tensors='pt')
+        input_ids = {k: v.to(device) for k, v in input_ids.items()}
 
-    # https://stackoverflow.com/questions/76926025/sentence-embeddings-from-llama-2-huggingface-opensource
-    idx_of_the_last_non_padding_token = input_ids['attention_mask'].bool().sum(1)-1
-    sentence_embeddings = hidden_states[torch.arange(hidden_states.shape[0]), idx_of_the_last_non_padding_token]
+        with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
+            output_ids = model.generate(
+                **input_ids,
+                do_sample=False,
+                max_new_tokens=1,
+                return_dict_in_generate=True,
+                output_hidden_states=True,
+                use_cache=True
+            )
 
-    return sentence_embeddings
+        hidden_states = output_ids.hidden_states[-1][-1]
+        idx_of_the_last_non_padding_token = input_ids['attention_mask'].bool().sum(1) - 1
+        new_batch_embeddings = hidden_states[torch.arange(hidden_states.shape[0]), idx_of_the_last_non_padding_token]
+
+        for i, embedding in zip(new_batch_indices, new_batch_embeddings):
+            hash_value = hashed_arrays[i]
+            cached_out[hash_value] = embedding
+
+    else:
+        new_batch_embeddings = []
+
+    if len(cached_batch_embeddings) > 0 and len(new_batch_embeddings) > 0:
+        output_embeddings = torch.empty(len(image_arrays), new_batch_embeddings.shape[1]).half().to(device)
+        output_embeddings[cached_batch_indices] = torch.stack(cached_batch_embeddings)
+        output_embeddings[new_batch_indices] = new_batch_embeddings
+    elif len(cached_batch_embeddings) > 0:
+        output_embeddings = torch.stack(cached_batch_embeddings)
+    elif len(new_batch_embeddings) > 0:
+        output_embeddings = new_batch_embeddings
+    else:
+        output_embeddings = torch.empty(0)
+    return output_embeddings
