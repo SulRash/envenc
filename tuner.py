@@ -147,7 +147,7 @@ class Tuner:
 
 if __name__ == "__main__":
     tuner = Tuner(
-        script="main.py",
+        script="main_envpool.py",
         metric="charts/episodic_return",
         metric_last_n_average_window=50,
         direction="maximize",
@@ -176,9 +176,7 @@ if __name__ == "__main__":
         wandb_kwargs={
             'project': 'envenc',
             'sync_tensorboard': True,
-            'name': 'tuner_vlm_cached_tinymlp',
             'monitor_gym': True,
-            'save_code': True,
         }
     )
     tuner.tune(
