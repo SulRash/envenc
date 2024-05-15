@@ -184,14 +184,15 @@ def infer_idefics(image_arrays, device = 'cuda', **kwargs):
     input_ids = processor(text=prompt, images=images, return_tensors='pt')
     input_ids = {k: v.to(device) for k, v in input_ids.items()}
 
-    output_ids = model.generate(
-        **input_ids,
-        do_sample=False,
-        max_new_tokens=1,
-        return_dict_in_generate=True,
-        output_hidden_states=True,
-        use_cache=True
-    )
+    with torch.backends.cuda.sdp_kernel(enable_flash=True, enable_math=False, enable_mem_efficient=False) and torch.no_grad():
+        output_ids = model.generate(
+            **input_ids,
+            do_sample=False,
+            max_new_tokens=1,
+            return_dict_in_generate=True,
+            output_hidden_states=True,
+            use_cache=True
+        )
     
     # Hidden states is tuple (one for each generated token) of tuple (number of layers)
     # Dimensions inside tuple-tuple are [batch size, generated_length, hidden_size]
