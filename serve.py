@@ -169,7 +169,6 @@ def hash_tensor(tensor):
 def infer_idefics(image_arrays, device='cuda', **kwargs):
     processor = kwargs['processor']
     model = kwargs['model']
-    cached_out = kwargs.get('cached_out', {})
 
     hashed_arrays = [hash_tensor(tensor) for tensor in image_arrays]
 
