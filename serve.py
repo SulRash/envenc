@@ -169,6 +169,7 @@ def hash_tensor(tensor):
 def infer_idefics(image_arrays, device='cuda', **kwargs):
     processor = kwargs['processor']
     model = kwargs['model']
+    cached_out = kwargs.get('cached_out', {})
 
     hashed_arrays = [hash_tensor(tensor) for tensor in image_arrays]
 
@@ -185,7 +186,7 @@ def infer_idefics(image_arrays, device='cuda', **kwargs):
             new_batch_arrays.append(image_arrays[i])
             new_batch_indices.append(i)
 
-    if new_batch_arrays:
+    if len(new_batch_arrays) > 0:
         images = [[torchvision.transforms.ToPILImage()(image_array)] for image_array in new_batch_arrays]
         messages = [[
             {
@@ -222,14 +223,11 @@ def infer_idefics(image_arrays, device='cuda', **kwargs):
     else:
         new_batch_embeddings = []
 
-    if len(cached_batch_embeddings) > 0 and len(new_batch_embeddings) > 0:
-        output_embeddings = torch.empty(len(image_arrays), new_batch_embeddings.shape[1]).half().to(device)
+    output_embeddings = torch.empty(len(image_arrays), new_batch_embeddings.shape[1] if len(new_batch_embeddings) > 0 else cached_batch_embeddings[0].shape[0]).half().to(device)
+
+    if len(cached_batch_embeddings) > 0:
         output_embeddings[cached_batch_indices] = torch.stack(cached_batch_embeddings)
+    if len(new_batch_embeddings) > 0:
         output_embeddings[new_batch_indices] = new_batch_embeddings
-    elif len(cached_batch_embeddings) > 0:
-        output_embeddings = torch.stack(cached_batch_embeddings)
-    elif len(new_batch_embeddings) > 0:
-        output_embeddings = new_batch_embeddings
-    else:
-        output_embeddings = torch.empty(0)
+
     return output_embeddings
